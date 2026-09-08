@@ -303,7 +303,7 @@ export default function LandingPage() {
             <Link href="/login">
               <Button
                 size="sm"
-                className="bg-slate-900 hover:bg-slate-800 text-white font-medium group relative overflow-hidden"
+                className="bg-blue-600 hover:bg-blue-700 text-white font-medium group relative overflow-hidden"
               >
                 <span className="relative z-10">Masuk Sistem</span>
                 <motion.span
