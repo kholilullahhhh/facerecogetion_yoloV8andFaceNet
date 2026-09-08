@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/table";
 import api from "@/lib/api";
 import type { Student } from "@/types";
-import { Plus, Search, Eye, Scan } from "lucide-react";
+import { Plus, Search, Eye, Scan, Pencil } from "lucide-react";
 
 export default function StudentsPage() {
   const [students, setStudents] = useState<Student[]>([]);
@@ -114,6 +114,11 @@ export default function StudentsPage() {
                       </TableCell>
                       <TableCell>
                         <div className="flex gap-2">
+                          <Link href={`/admin/students/${student.id}/edit`}>
+                            <Button variant="outline" size="sm">
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                          </Link>
                           <Link href={`/admin/students/${student.id}`}>
                             <Button variant="outline" size="sm">
                               <Eye className="h-4 w-4" />

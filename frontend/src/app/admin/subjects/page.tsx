@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/table";
 import api from "@/lib/api";
 import type { Subject } from "@/types";
-import { Plus, Search, Trash2 } from "lucide-react";
+import { Plus, Search, Trash2, Pencil } from "lucide-react";
 
 export default function SubjectsPage() {
   const [subjects, setSubjects] = useState<Subject[]>([]);
@@ -20,6 +20,8 @@ export default function SubjectsPage() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ name: "", code: "" });
   const [formLoading, setFormLoading] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editForm, setEditForm] = useState({ name: "", code: "", status: "active" });
   const [refresh, setRefresh] = useState(0);
 
   useEffect(() => {
@@ -56,6 +58,26 @@ export default function SubjectsPage() {
     }
   };
 
+  const startEdit = (subject: Subject) => {
+    setEditingId(subject.id);
+    setEditForm({ name: subject.name, code: subject.code, status: subject.status });
+  };
+
+  const handleUpdate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingId) return;
+    setFormLoading(true);
+    try {
+      await api.put(`/admin/subjects/${editingId}`, editForm);
+      setEditingId(null);
+      setRefresh((r) => r + 1);
+    } catch {
+      // handle error
+    } finally {
+      setFormLoading(false);
+    }
+  };
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -75,6 +97,26 @@ export default function SubjectsPage() {
                 <Input placeholder="Nama Mata Pelajaran" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
                 <Input placeholder="Kode (contoh: MTK)" value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} required />
                 <Button type="submit" disabled={formLoading}>{formLoading ? "Menyimpan..." : "Simpan"}</Button>
+              </form>
+            </CardContent>
+          </Card>
+        )}
+
+        {editingId && (
+          <Card>
+            <CardHeader><h2 className="text-lg font-semibold">Edit Mata Pelajaran</h2></CardHeader>
+            <CardContent>
+              <form onSubmit={handleUpdate} className="grid gap-4 md:grid-cols-2">
+                <Input placeholder="Nama Mata Pelajaran" value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} required />
+                <Input placeholder="Kode" value={editForm.code} onChange={(e) => setEditForm({ ...editForm, code: e.target.value })} required />
+                <select className="rounded-md border bg-white px-3 py-2 text-sm" value={editForm.status} onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}>
+                  <option value="active">Aktif</option>
+                  <option value="inactive">Nonaktif</option>
+                </select>
+                <div className="flex gap-2">
+                  <Button type="submit" disabled={formLoading}>{formLoading ? "Menyimpan..." : "Simpan"}</Button>
+                  <Button type="button" variant="outline" onClick={() => setEditingId(null)}>Batal</Button>
+                </div>
               </form>
             </CardContent>
           </Card>
@@ -113,9 +155,14 @@ export default function SubjectsPage() {
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        <Button variant="destructive" size="sm" onClick={() => handleDelete(subject.id)}>
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                        <div className="flex gap-1">
+                          <Button variant="outline" size="sm" onClick={() => startEdit(subject)}>
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button variant="destructive" size="sm" onClick={() => handleDelete(subject.id)}>
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))

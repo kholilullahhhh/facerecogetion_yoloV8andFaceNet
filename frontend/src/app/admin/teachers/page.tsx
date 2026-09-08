@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/table";
 import api from "@/lib/api";
 import type { Teacher } from "@/types";
-import { Plus, Search, Trash2 } from "lucide-react";
+import { Plus, Search, Trash2, Pencil } from "lucide-react";
 
 export default function TeachersPage() {
   const [teachers, setTeachers] = useState<Teacher[]>([]);
@@ -20,6 +20,8 @@ export default function TeachersPage() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ nip: "", name: "", phone: "", email: "", password: "" });
   const [formLoading, setFormLoading] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editForm, setEditForm] = useState({ nip: "", name: "", phone: "", status: "active" });
   const [refresh, setRefresh] = useState(0);
 
   useEffect(() => {
@@ -56,6 +58,26 @@ export default function TeachersPage() {
     }
   };
 
+  const startEdit = (teacher: Teacher) => {
+    setEditingId(teacher.id);
+    setEditForm({ nip: teacher.nip, name: teacher.name, phone: teacher.phone || "", status: teacher.status });
+  };
+
+  const handleUpdate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingId) return;
+    setFormLoading(true);
+    try {
+      await api.put(`/admin/teachers/${editingId}`, editForm);
+      setEditingId(null);
+      setRefresh((r) => r + 1);
+    } catch {
+      // handle error
+    } finally {
+      setFormLoading(false);
+    }
+  };
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -80,6 +102,29 @@ export default function TeachersPage() {
                 <Input placeholder="Email" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required />
                 <Input placeholder="Password" type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required />
                 <Button type="submit" disabled={formLoading}>{formLoading ? "Menyimpan..." : "Simpan"}</Button>
+              </form>
+            </CardContent>
+          </Card>
+        )}
+
+        {editingId && (
+          <Card>
+            <CardHeader>
+              <h2 className="text-lg font-semibold">Edit Guru</h2>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleUpdate} className="grid gap-4 md:grid-cols-2">
+                <Input placeholder="NIP" value={editForm.nip} onChange={(e) => setEditForm({ ...editForm, nip: e.target.value })} required />
+                <Input placeholder="Nama Lengkap" value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} required />
+                <Input placeholder="Telepon" value={editForm.phone} onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })} />
+                <select className="rounded-md border bg-white px-3 py-2 text-sm" value={editForm.status} onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}>
+                  <option value="active">Aktif</option>
+                  <option value="inactive">Nonaktif</option>
+                </select>
+                <div className="flex gap-2">
+                  <Button type="submit" disabled={formLoading}>{formLoading ? "Menyimpan..." : "Simpan"}</Button>
+                  <Button type="button" variant="outline" onClick={() => setEditingId(null)}>Batal</Button>
+                </div>
               </form>
             </CardContent>
           </Card>
@@ -122,9 +167,14 @@ export default function TeachersPage() {
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        <Button variant="destructive" size="sm" onClick={() => handleDelete(teacher.id)}>
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                        <div className="flex gap-1">
+                          <Button variant="outline" size="sm" onClick={() => startEdit(teacher)}>
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button variant="destructive" size="sm" onClick={() => handleDelete(teacher.id)}>
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))

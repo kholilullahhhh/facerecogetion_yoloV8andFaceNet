@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/table";
 import api from "@/lib/api";
 import type { Student } from "@/types";
-import { ArrowLeft, Scan, Trash2 } from "lucide-react";
+import { ArrowLeft, Scan, Trash2, Pencil } from "lucide-react";
 import Link from "next/link";
 
 export default function StudentDetailPage() {
@@ -61,6 +61,9 @@ export default function StudentDetailPage() {
         <div className="flex items-center gap-4">
           <Link href="/admin/students"><Button variant="outline" size="sm"><ArrowLeft className="mr-2 h-4 w-4" />Kembali</Button></Link>
           <h1 className="text-2xl font-bold">{student.name}</h1>
+          <Link href={`/admin/students/${student.id}/edit`}>
+            <Button variant="outline" size="sm"><Pencil className="mr-2 h-4 w-4" />Edit</Button>
+          </Link>
           <Link href={`/admin/students/${student.id}/face-registration`}>
             <Button size="sm"><Scan className="mr-2 h-4 w-4" />Daftarkan Wajah</Button>
           </Link>
