@@ -1,6 +1,6 @@
-# Sistem Absensi Face Recognition
+****# Sistem Absensi Face Recognition
 
-## SMP Aisyiyah Paccinongang
+## Absensi Facerecognation yoloV8 and FaceNet
 
 Implementasi Face Recognition menggunakan **YOLOv8s** + **FaceNet** untuk sistem absensi siswa.
 
@@ -168,4 +168,4 @@ python train.py --dataset ../../datasets/facenet --epochs 20
 
 ## License
 
-Untuk penelitian SMP Aisyiyah Paccinongang.
+luluuu.
