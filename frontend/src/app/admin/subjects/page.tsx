@@ -20,16 +20,16 @@ export default function SubjectsPage() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ name: "", code: "" });
   const [formLoading, setFormLoading] = useState(false);
+  const [refresh, setRefresh] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
-    const controller = new AbortController();
-    api.get("/admin/subjects", { params: { search }, signal: controller.signal })
+    api.get("/admin/subjects", { params: { search } })
       .then((res) => { if (!cancelled) setSubjects(res.data.data.data); })
       .catch(() => {})
       .finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; controller.abort(); };
-  }, [search]);
+    return () => { cancelled = true; };
+  }, [search, refresh]);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -38,7 +38,7 @@ export default function SubjectsPage() {
       await api.post("/admin/subjects", form);
       setShowForm(false);
       setForm({ name: "", code: "" });
-      fetchSubjects();
+      setRefresh((r) => r + 1);
     } catch {
       // handle error
     } finally {
@@ -50,7 +50,7 @@ export default function SubjectsPage() {
     if (!confirm("Yakin ingin menghapus mata pelajaran ini?")) return;
     try {
       await api.delete(`/admin/subjects/${id}`);
-      fetchSubjects();
+      setRefresh((r) => r + 1);
     } catch {
       // handle error
     }

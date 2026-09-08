@@ -22,15 +22,15 @@ export default function SchedulesPage() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ class_id: "", subject_id: "", teacher_id: "", day: "Senin", start_time: "", end_time: "" });
   const [formLoading, setFormLoading] = useState(false);
+  const [refresh, setRefresh] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
-    const controller = new AbortController();
     Promise.all([
-      api.get("/admin/schedules", { signal: controller.signal }),
-      api.get("/admin/classes", { signal: controller.signal }),
-      api.get("/admin/subjects", { signal: controller.signal }),
-      api.get("/admin/teachers", { signal: controller.signal }),
+      api.get("/admin/schedules"),
+      api.get("/admin/classes"),
+      api.get("/admin/subjects"),
+      api.get("/admin/teachers"),
     ]).then(([schRes, clsRes, subRes, teaRes]) => {
       if (!cancelled) {
         setSchedules(schRes.data.data.data);
@@ -39,8 +39,8 @@ export default function SchedulesPage() {
         setTeachers(teaRes.data.data.data);
       }
     }).catch(() => {}).finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; controller.abort(); };
-  }, []);
+    return () => { cancelled = true; };
+  }, [refresh]);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -49,7 +49,7 @@ export default function SchedulesPage() {
       await api.post("/admin/schedules", form);
       setShowForm(false);
       setForm({ class_id: "", subject_id: "", teacher_id: "", day: "Senin", start_time: "", end_time: "" });
-      fetchAll();
+      setRefresh((r) => r + 1);
     } catch {
       // handle error
     } finally {
@@ -61,7 +61,7 @@ export default function SchedulesPage() {
     if (!confirm("Yakin ingin menghapus jadwal ini?")) return;
     try {
       await api.delete(`/admin/schedules/${id}`);
-      fetchAll();
+      setRefresh((r) => r + 1);
     } catch {
       // handle error
     }

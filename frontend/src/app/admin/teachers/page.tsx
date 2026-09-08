@@ -20,16 +20,16 @@ export default function TeachersPage() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ nip: "", name: "", phone: "", email: "", password: "" });
   const [formLoading, setFormLoading] = useState(false);
+  const [refresh, setRefresh] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
-    const controller = new AbortController();
-    api.get("/admin/teachers", { params: { search }, signal: controller.signal })
+    api.get("/admin/teachers", { params: { search } })
       .then((res) => { if (!cancelled) setTeachers(res.data.data.data); })
       .catch(() => {})
       .finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; controller.abort(); };
-  }, [search]);
+    return () => { cancelled = true; };
+  }, [search, refresh]);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -38,7 +38,7 @@ export default function TeachersPage() {
       await api.post("/admin/teachers", form);
       setShowForm(false);
       setForm({ nip: "", name: "", phone: "", email: "", password: "" });
-      fetchTeachers();
+      setRefresh((r) => r + 1);
     } catch {
       // handle error
     } finally {
@@ -50,7 +50,7 @@ export default function TeachersPage() {
     if (!confirm("Yakin ingin menghapus guru ini?")) return;
     try {
       await api.delete(`/admin/teachers/${id}`);
-      fetchTeachers();
+      setRefresh((r) => r + 1);
     } catch {
       // handle error
     }

@@ -20,16 +20,16 @@ export default function ClassesPage() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ name: "", grade: "", academic_year: "" });
   const [formLoading, setFormLoading] = useState(false);
+  const [refresh, setRefresh] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
-    const controller = new AbortController();
-    api.get("/admin/classes", { params: { search }, signal: controller.signal })
+    api.get("/admin/classes", { params: { search } })
       .then((res) => { if (!cancelled) setClasses(res.data.data.data); })
       .catch(() => {})
       .finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; controller.abort(); };
-  }, [search]);
+    return () => { cancelled = true; };
+  }, [search, refresh]);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -38,7 +38,7 @@ export default function ClassesPage() {
       await api.post("/admin/classes", form);
       setShowForm(false);
       setForm({ name: "", grade: "", academic_year: "" });
-      fetchClasses();
+      setRefresh((r) => r + 1);
     } catch {
       // handle error
     } finally {
@@ -50,7 +50,7 @@ export default function ClassesPage() {
     if (!confirm("Yakin ingin menghapus kelas ini?")) return;
     try {
       await api.delete(`/admin/classes/${id}`);
-      fetchClasses();
+      setRefresh((r) => r + 1);
     } catch {
       // handle error
     }
