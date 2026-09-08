@@ -6,8 +6,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { 
   Camera, 
   Users, 
-  BarChart3, 
-  ShieldCheck, 
   ScanFace, 
   CheckCircle2, 
   ArrowRight,
