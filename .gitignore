@@ -1,0 +1,49 @@
+# Dependencies
+node_modules/
+vendor/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# Environment
+.env
+.env.local
+.env.production
+
+# Model weights
+*.pt
+*.pth
+*.onnx
+*.tflite
+
+# Datasets
+datasets/
+ai-service/datasets/
+
+# Storage
+backend/storage/app/public/faces/*
+backend/storage/app/public/students/*
+backend/storage/app/public/attendance/*
+!backend/storage/app/public/faces/.gitkeep
+!backend/storage/app/public/students/.gitkeep
+!backend/storage/app/public/attendance/.gitkeep
+
+# Build
+frontend/.next/
+frontend/out/
+backend/vendor/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
