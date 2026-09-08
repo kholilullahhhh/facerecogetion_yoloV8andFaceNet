@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import Link from "next/link";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -34,7 +35,12 @@ export default function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-gray-50">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl font-bold text-primary">
+          <Link href="/" className="inline-block">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-primary text-primary-foreground font-bold text-lg">
+              FR
+            </div>
+          </Link>
+          <CardTitle className="mt-4 text-2xl font-bold">
             FACE REC
           </CardTitle>
           <CardDescription>
@@ -76,6 +82,11 @@ export default function LoginPage() {
               {loading ? "Memproses..." : "Masuk"}
             </Button>
           </form>
+          <div className="mt-4 text-center text-sm text-muted-foreground">
+            <Link href="/" className="hover:underline">
+              &larr; Kembali ke beranda
+            </Link>
+          </div>
         </CardContent>
       </Card>
     </div>

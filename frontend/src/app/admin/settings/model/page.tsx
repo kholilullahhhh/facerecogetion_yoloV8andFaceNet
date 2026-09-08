@@ -23,20 +23,18 @@ export default function ModelSettingsPage() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
 
-  const fetchHealth = async () => {
-    try {
-      const res = await api.get("/health");
-      setHealth(res.data);
-      setThreshold(String(res.data.threshold));
-    } catch {
-      // AI service might be on different port
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    fetchHealth();
+    let cancelled = false;
+    api.get("/health")
+      .then((res) => {
+        if (!cancelled) {
+          setHealth(res.data);
+          setThreshold(String(res.data.threshold));
+        }
+      })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
   }, []);
 
   const handleUpdateThreshold = async (e: React.FormEvent) => {
@@ -46,7 +44,9 @@ export default function ModelSettingsPage() {
     try {
       await api.put("/threshold", { threshold: parseFloat(threshold) });
       setMessage("Threshold berhasil diperbarui.");
-      fetchHealth();
+      const res = await api.get("/health");
+      setHealth(res.data);
+      setThreshold(String(res.data.threshold));
     } catch {
       setMessage("Gagal memperbarui threshold.");
     } finally {
