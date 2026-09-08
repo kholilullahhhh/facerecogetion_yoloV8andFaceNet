@@ -63,7 +63,7 @@ export default function AdminReportsPage() {
             <CardTitle>Filter Laporan</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="flex flex-wrap items-end gap-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:gap-4">
               <div className="space-y-1">
                 <label className="text-sm">Dari Tanggal</label>
                 <Input type="date" value={filters.start_date} onChange={(e) => setFilters({ ...filters, start_date: e.target.value })} />

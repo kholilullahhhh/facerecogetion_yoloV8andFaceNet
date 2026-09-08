@@ -51,6 +51,7 @@ export default function AdminAttendancePage() {
             <CardTitle>Semua Data Kehadiran</CardTitle>
           </CardHeader>
           <CardContent>
+            <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -83,6 +84,7 @@ export default function AdminAttendancePage() {
                 )}
               </TableBody>
             </Table>
+            </div>
             <div className="mt-4 flex justify-between">
               <Button variant="outline" disabled={page <= 1} onClick={() => setPage(page - 1)}>Sebelumnya</Button>
               <span className="text-sm text-muted-foreground">Halaman {page} dari {lastPage}</span>

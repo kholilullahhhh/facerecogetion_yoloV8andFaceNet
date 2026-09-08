@@ -54,4 +54,34 @@ class AuthController extends Controller
             'data' => $request->user()->load('teacher'),
         ]);
     }
+
+    public function updateProfile(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        $teacher = $user->teacher;
+
+        if (! $teacher) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Profil guru tidak ditemukan.',
+            ], 404);
+        }
+
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'phone' => 'nullable|string',
+        ]);
+
+        $teacher->update([
+            'name' => $validated['name'],
+            'phone' => $validated['phone'] ?? null,
+        ]);
+        $user->update(['name' => $validated['name']]);
+
+        return response()->json([
+            'success' => true,
+            'data' => $teacher->load('user'),
+            'message' => 'Profil berhasil diperbarui.',
+        ]);
+    }
 }

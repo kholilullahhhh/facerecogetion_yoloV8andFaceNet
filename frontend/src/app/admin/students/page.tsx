@@ -47,7 +47,7 @@ export default function StudentsPage() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h1 className="text-2xl font-bold">Manajemen Siswa</h1>
           <Link href="/admin/students/create">
             <Button>
@@ -70,6 +70,7 @@ export default function StudentsPage() {
             </div>
           </CardHeader>
           <CardContent>
+            <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -115,17 +116,17 @@ export default function StudentsPage() {
                       <TableCell>
                         <div className="flex gap-2">
                           <Link href={`/admin/students/${student.id}/edit`}>
-                            <Button variant="outline" size="sm">
+                            <Button variant="outline" size="sm" aria-label="Edit siswa">
                               <Pencil className="h-4 w-4" />
                             </Button>
                           </Link>
                           <Link href={`/admin/students/${student.id}`}>
-                            <Button variant="outline" size="sm">
+                            <Button variant="outline" size="sm" aria-label="Lihat detail">
                               <Eye className="h-4 w-4" />
                             </Button>
                           </Link>
                           <Link href={`/admin/students/${student.id}/face-registration`}>
-                            <Button variant="outline" size="sm">
+                            <Button variant="outline" size="sm" aria-label="Daftarkan wajah">
                               <Scan className="h-4 w-4" />
                             </Button>
                           </Link>
@@ -136,6 +137,7 @@ export default function StudentsPage() {
                 )}
               </TableBody>
             </Table>
+            </div>
           </CardContent>
         </Card>
       </div>

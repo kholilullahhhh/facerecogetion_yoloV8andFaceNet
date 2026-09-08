@@ -35,7 +35,7 @@ export default function DashboardLayout({
     <div className="min-h-screen bg-gray-50">
       <Sidebar />
       <MobileSidebar />
-      <main className="ml-64 p-6">{children}</main>
+      <main className="p-4 pt-16 lg:ml-64 lg:p-6 lg:pt-6">{children}</main>
     </div>
   );
 }

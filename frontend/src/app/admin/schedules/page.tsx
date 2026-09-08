@@ -100,7 +100,7 @@ export default function SchedulesPage() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h1 className="text-2xl font-bold">Manajemen Jadwal</h1>
           <Button onClick={() => setShowForm(!showForm)}>
             <Plus className="mr-2 h-4 w-4" />
@@ -112,20 +112,20 @@ export default function SchedulesPage() {
           <Card>
             <CardHeader><h2 className="text-lg font-semibold">Tambah Jadwal Baru</h2></CardHeader>
             <CardContent>
-              <form onSubmit={handleCreate} className="grid gap-4 md:grid-cols-3">
-                <select className="rounded-md border bg-white px-3 py-2 text-sm" value={form.class_id} onChange={(e) => setForm({ ...form, class_id: e.target.value })} required>
+              <form onSubmit={handleCreate} className="grid gap-4 grid-cols-1 sm:grid-cols-3">
+                <select className="rounded-md border bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100" value={form.class_id} onChange={(e) => setForm({ ...form, class_id: e.target.value })} required>
                   <option value="">Pilih Kelas</option>
                   {classes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
-                <select className="rounded-md border bg-white px-3 py-2 text-sm" value={form.subject_id} onChange={(e) => setForm({ ...form, subject_id: e.target.value })} required>
+                <select className="rounded-md border bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100" value={form.subject_id} onChange={(e) => setForm({ ...form, subject_id: e.target.value })} required>
                   <option value="">Pilih Mata Pelajaran</option>
                   {subjects.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
                 </select>
-                <select className="rounded-md border bg-white px-3 py-2 text-sm" value={form.teacher_id} onChange={(e) => setForm({ ...form, teacher_id: e.target.value })} required>
+                <select className="rounded-md border bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100" value={form.teacher_id} onChange={(e) => setForm({ ...form, teacher_id: e.target.value })} required>
                   <option value="">Pilih Guru</option>
                   {teachers.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
                 </select>
-                <select className="rounded-md border bg-white px-3 py-2 text-sm" value={form.day} onChange={(e) => setForm({ ...form, day: e.target.value })} required>
+                <select className="rounded-md border bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100" value={form.day} onChange={(e) => setForm({ ...form, day: e.target.value })} required>
                   {["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"].map((d) => <option key={d} value={d}>{d}</option>)}
                 </select>
                 <Input type="time" value={form.start_time} onChange={(e) => setForm({ ...form, start_time: e.target.value })} required />
@@ -140,25 +140,25 @@ export default function SchedulesPage() {
           <Card>
             <CardHeader><h2 className="text-lg font-semibold">Edit Jadwal</h2></CardHeader>
             <CardContent>
-              <form onSubmit={handleUpdate} className="grid gap-4 md:grid-cols-3">
-                <select className="rounded-md border bg-white px-3 py-2 text-sm" value={editForm.class_id} onChange={(e) => setEditForm({ ...editForm, class_id: e.target.value })} required>
+              <form onSubmit={handleUpdate} className="grid gap-4 grid-cols-1 sm:grid-cols-3">
+                <select className="rounded-md border bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100" value={editForm.class_id} onChange={(e) => setEditForm({ ...editForm, class_id: e.target.value })} required>
                   <option value="">Pilih Kelas</option>
                   {classes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
-                <select className="rounded-md border bg-white px-3 py-2 text-sm" value={editForm.subject_id} onChange={(e) => setEditForm({ ...editForm, subject_id: e.target.value })} required>
+                <select className="rounded-md border bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100" value={editForm.subject_id} onChange={(e) => setEditForm({ ...editForm, subject_id: e.target.value })} required>
                   <option value="">Pilih Mata Pelajaran</option>
                   {subjects.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
                 </select>
-                <select className="rounded-md border bg-white px-3 py-2 text-sm" value={editForm.teacher_id} onChange={(e) => setEditForm({ ...editForm, teacher_id: e.target.value })} required>
+                <select className="rounded-md border bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100" value={editForm.teacher_id} onChange={(e) => setEditForm({ ...editForm, teacher_id: e.target.value })} required>
                   <option value="">Pilih Guru</option>
                   {teachers.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
                 </select>
-                <select className="rounded-md border bg-white px-3 py-2 text-sm" value={editForm.day} onChange={(e) => setEditForm({ ...editForm, day: e.target.value })} required>
+                <select className="rounded-md border bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100" value={editForm.day} onChange={(e) => setEditForm({ ...editForm, day: e.target.value })} required>
                   {["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"].map((d) => <option key={d} value={d}>{d}</option>)}
                 </select>
                 <Input type="time" value={editForm.start_time} onChange={(e) => setEditForm({ ...editForm, start_time: e.target.value })} required />
                 <Input type="time" value={editForm.end_time} onChange={(e) => setEditForm({ ...editForm, end_time: e.target.value })} required />
-                <select className="rounded-md border bg-white px-3 py-2 text-sm" value={editForm.status} onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}>
+                <select className="rounded-md border bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100" value={editForm.status} onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}>
                   <option value="active">Aktif</option>
                   <option value="inactive">Nonaktif</option>
                 </select>
@@ -173,6 +173,7 @@ export default function SchedulesPage() {
 
         <Card>
           <CardContent className="pt-6">
+            <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -205,10 +206,10 @@ export default function SchedulesPage() {
                       </TableCell>
                       <TableCell>
                         <div className="flex gap-1">
-                          <Button variant="outline" size="sm" onClick={() => startEdit(s)}>
+                          <Button variant="outline" size="sm" onClick={() => startEdit(s)} aria-label="Edit jadwal">
                             <Pencil className="h-4 w-4" />
                           </Button>
-                          <Button variant="destructive" size="sm" onClick={() => handleDelete(s.id)}>
+                          <Button variant="destructive" size="sm" onClick={() => handleDelete(s.id)} aria-label="Hapus jadwal">
                             <Trash2 className="h-4 w-4" />
                           </Button>
                         </div>
@@ -218,6 +219,7 @@ export default function SchedulesPage() {
                 )}
               </TableBody>
             </Table>
+            </div>
           </CardContent>
         </Card>
       </div>

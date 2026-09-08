@@ -45,4 +45,6 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/attendance', [ReportController::class, 'attendance']);
         Route::get('/attendance/export', [ReportController::class, 'export']);
     });
+
+    Route::put('/teacher/profile', [AuthController::class, 'updateProfile']);
 });

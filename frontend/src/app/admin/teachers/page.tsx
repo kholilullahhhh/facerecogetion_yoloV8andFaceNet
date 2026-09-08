@@ -81,7 +81,7 @@ export default function TeachersPage() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h1 className="text-2xl font-bold">Manajemen Guru</h1>
           <Button onClick={() => setShowForm(!showForm)}>
             <Plus className="mr-2 h-4 w-4" />
@@ -95,7 +95,7 @@ export default function TeachersPage() {
               <h2 className="text-lg font-semibold">Tambah Guru Baru</h2>
             </CardHeader>
             <CardContent>
-              <form onSubmit={handleCreate} className="grid gap-4 md:grid-cols-2">
+              <form onSubmit={handleCreate} className="grid gap-4 grid-cols-1 sm:grid-cols-2">
                 <Input placeholder="NIP" value={form.nip} onChange={(e) => setForm({ ...form, nip: e.target.value })} required />
                 <Input placeholder="Nama Lengkap" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
                 <Input placeholder="Telepon" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
@@ -113,11 +113,11 @@ export default function TeachersPage() {
               <h2 className="text-lg font-semibold">Edit Guru</h2>
             </CardHeader>
             <CardContent>
-              <form onSubmit={handleUpdate} className="grid gap-4 md:grid-cols-2">
+              <form onSubmit={handleUpdate} className="grid gap-4 grid-cols-1 sm:grid-cols-2">
                 <Input placeholder="NIP" value={editForm.nip} onChange={(e) => setEditForm({ ...editForm, nip: e.target.value })} required />
                 <Input placeholder="Nama Lengkap" value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} required />
                 <Input placeholder="Telepon" value={editForm.phone} onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })} />
-                <select className="rounded-md border bg-white px-3 py-2 text-sm" value={editForm.status} onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}>
+                <select className="rounded-md border bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100" value={editForm.status} onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}>
                   <option value="active">Aktif</option>
                   <option value="inactive">Nonaktif</option>
                 </select>
@@ -138,6 +138,7 @@ export default function TeachersPage() {
             </div>
           </CardHeader>
           <CardContent>
+            <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -168,10 +169,10 @@ export default function TeachersPage() {
                       </TableCell>
                       <TableCell>
                         <div className="flex gap-1">
-                          <Button variant="outline" size="sm" onClick={() => startEdit(teacher)}>
+                          <Button variant="outline" size="sm" onClick={() => startEdit(teacher)} aria-label="Edit guru">
                             <Pencil className="h-4 w-4" />
                           </Button>
-                          <Button variant="destructive" size="sm" onClick={() => handleDelete(teacher.id)}>
+                          <Button variant="destructive" size="sm" onClick={() => handleDelete(teacher.id)} aria-label="Hapus guru">
                             <Trash2 className="h-4 w-4" />
                           </Button>
                         </div>
@@ -181,6 +182,7 @@ export default function TeachersPage() {
                 )}
               </TableBody>
             </Table>
+            </div>
           </CardContent>
         </Card>
       </div>

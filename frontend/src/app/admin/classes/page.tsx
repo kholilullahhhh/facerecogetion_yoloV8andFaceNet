@@ -81,7 +81,7 @@ export default function ClassesPage() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h1 className="text-2xl font-bold">Manajemen Kelas</h1>
           <Button onClick={() => setShowForm(!showForm)}>
             <Plus className="mr-2 h-4 w-4" />
@@ -93,7 +93,7 @@ export default function ClassesPage() {
           <Card>
             <CardHeader><h2 className="text-lg font-semibold">Tambah Kelas Baru</h2></CardHeader>
             <CardContent>
-              <form onSubmit={handleCreate} className="grid gap-4 md:grid-cols-3">
+              <form onSubmit={handleCreate} className="grid gap-4 grid-cols-1 sm:grid-cols-3">
                 <Input placeholder="Nama Kelas" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
                 <Input placeholder="Grade (contoh: 7)" value={form.grade} onChange={(e) => setForm({ ...form, grade: e.target.value })} required />
                 <Input placeholder="Tahun Ajaran (contoh: 2024/2025)" value={form.academic_year} onChange={(e) => setForm({ ...form, academic_year: e.target.value })} required />
@@ -107,11 +107,11 @@ export default function ClassesPage() {
           <Card>
             <CardHeader><h2 className="text-lg font-semibold">Edit Kelas</h2></CardHeader>
             <CardContent>
-              <form onSubmit={handleUpdate} className="grid gap-4 md:grid-cols-3">
+              <form onSubmit={handleUpdate} className="grid gap-4 grid-cols-1 sm:grid-cols-3">
                 <Input placeholder="Nama Kelas" value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} required />
                 <Input placeholder="Grade" value={editForm.grade} onChange={(e) => setEditForm({ ...editForm, grade: e.target.value })} required />
                 <Input placeholder="Tahun Ajaran" value={editForm.academic_year} onChange={(e) => setEditForm({ ...editForm, academic_year: e.target.value })} required />
-                <select className="rounded-md border bg-white px-3 py-2 text-sm" value={editForm.status} onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}>
+                <select className="rounded-md border bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100" value={editForm.status} onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}>
                   <option value="active">Aktif</option>
                   <option value="inactive">Nonaktif</option>
                 </select>
@@ -132,6 +132,7 @@ export default function ClassesPage() {
             </div>
           </CardHeader>
           <CardContent>
+            <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -162,10 +163,10 @@ export default function ClassesPage() {
                       </TableCell>
                       <TableCell>
                         <div className="flex gap-1">
-                          <Button variant="outline" size="sm" onClick={() => startEdit(cls)}>
+                          <Button variant="outline" size="sm" onClick={() => startEdit(cls)} aria-label="Edit kelas">
                             <Pencil className="h-4 w-4" />
                           </Button>
-                          <Button variant="destructive" size="sm" onClick={() => handleDelete(cls.id)}>
+                          <Button variant="destructive" size="sm" onClick={() => handleDelete(cls.id)} aria-label="Hapus kelas">
                             <Trash2 className="h-4 w-4" />
                           </Button>
                         </div>
@@ -175,6 +176,7 @@ export default function ClassesPage() {
                 )}
               </TableBody>
             </Table>
+            </div>
           </CardContent>
         </Card>
       </div>

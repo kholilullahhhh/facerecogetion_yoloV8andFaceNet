@@ -81,7 +81,7 @@ export default function SubjectsPage() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h1 className="text-2xl font-bold">Manajemen Mata Pelajaran</h1>
           <Button onClick={() => setShowForm(!showForm)}>
             <Plus className="mr-2 h-4 w-4" />
@@ -93,7 +93,7 @@ export default function SubjectsPage() {
           <Card>
             <CardHeader><h2 className="text-lg font-semibold">Tambah Mata Pelajaran Baru</h2></CardHeader>
             <CardContent>
-              <form onSubmit={handleCreate} className="grid gap-4 md:grid-cols-2">
+              <form onSubmit={handleCreate} className="grid gap-4 grid-cols-1 sm:grid-cols-2">
                 <Input placeholder="Nama Mata Pelajaran" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
                 <Input placeholder="Kode (contoh: MTK)" value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} required />
                 <Button type="submit" disabled={formLoading}>{formLoading ? "Menyimpan..." : "Simpan"}</Button>
@@ -106,10 +106,10 @@ export default function SubjectsPage() {
           <Card>
             <CardHeader><h2 className="text-lg font-semibold">Edit Mata Pelajaran</h2></CardHeader>
             <CardContent>
-              <form onSubmit={handleUpdate} className="grid gap-4 md:grid-cols-2">
+              <form onSubmit={handleUpdate} className="grid gap-4 grid-cols-1 sm:grid-cols-2">
                 <Input placeholder="Nama Mata Pelajaran" value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} required />
                 <Input placeholder="Kode" value={editForm.code} onChange={(e) => setEditForm({ ...editForm, code: e.target.value })} required />
-                <select className="rounded-md border bg-white px-3 py-2 text-sm" value={editForm.status} onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}>
+                <select className="rounded-md border bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100" value={editForm.status} onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}>
                   <option value="active">Aktif</option>
                   <option value="inactive">Nonaktif</option>
                 </select>
@@ -130,6 +130,7 @@ export default function SubjectsPage() {
             </div>
           </CardHeader>
           <CardContent>
+            <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -156,10 +157,10 @@ export default function SubjectsPage() {
                       </TableCell>
                       <TableCell>
                         <div className="flex gap-1">
-                          <Button variant="outline" size="sm" onClick={() => startEdit(subject)}>
+                          <Button variant="outline" size="sm" onClick={() => startEdit(subject)} aria-label="Edit mata pelajaran">
                             <Pencil className="h-4 w-4" />
                           </Button>
-                          <Button variant="destructive" size="sm" onClick={() => handleDelete(subject.id)}>
+                          <Button variant="destructive" size="sm" onClick={() => handleDelete(subject.id)} aria-label="Hapus mata pelajaran">
                             <Trash2 className="h-4 w-4" />
                           </Button>
                         </div>
@@ -169,6 +170,7 @@ export default function SubjectsPage() {
                 )}
               </TableBody>
             </Table>
+            </div>
           </CardContent>
         </Card>
       </div>
