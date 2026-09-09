@@ -9,6 +9,28 @@ use Illuminate\Http\Request;
 
 class ScheduleController extends Controller
 {
+    public function mySchedules(Request $request): JsonResponse
+    {
+        $teacher = $request->user()->teacher;
+        if (! $teacher) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Data guru tidak ditemukan.',
+            ], 400);
+        }
+
+        $schedules = Schedule::with(['class', 'subject'])
+            ->where('teacher_id', $teacher->id)
+            ->orderBy('day')
+            ->orderBy('start_time')
+            ->paginate($request->get('per_page', 100));
+
+        return response()->json([
+            'success' => true,
+            'data' => $schedules,
+        ]);
+    }
+
     public function index(Request $request): JsonResponse
     {
         $query = Schedule::with(['class', 'subject', 'teacher']);

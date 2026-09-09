@@ -43,7 +43,7 @@ export default function TeacherAttendancePage() {
 
   useEffect(() => {
     fetchSessions();
-    api.get("/admin/schedules", { params: { per_page: 100 } })
+    api.get("/schedules", { params: { per_page: 100 } })
       .then((res) => {
         const data = res.data.data.data || res.data.data;
         setSchedules(Array.isArray(data) ? data : []);

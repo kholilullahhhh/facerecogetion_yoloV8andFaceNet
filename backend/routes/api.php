@@ -32,6 +32,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/dashboard/class-summary', [DashboardController::class, 'classSummary']);
     Route::get('/dashboard/recent', [DashboardController::class, 'recentAttendance']);
 
+    Route::get('/schedules', [ScheduleController::class, 'mySchedules']);
+
     Route::prefix('attendance')->group(function () {
         Route::post('/sessions', [AttendanceController::class, 'storeSession']);
         Route::get('/sessions', [AttendanceController::class, 'getSessions']);
