@@ -27,18 +27,24 @@ export default function TeacherAttendancePage() {
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [createForm, setCreateForm] = useState({ schedule_id: "", date: "", start_time: "" });
   const [creating, setCreating] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [recognizeError, setRecognizeError] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const recognizingRef = useRef(false);
 
   const fetchSessions = () => {
     api.get("/attendance/sessions", { params: { status: "active", per_page: 50 } })
       .then((res) => {
         const data = res.data.data.data || res.data.data;
         setSessions(Array.isArray(data) ? data : []);
+        setLoadError(null);
       })
-      .catch(() => {});
+      .catch(() => {
+        setLoadError("Gagal memuat sesi absensi. Coba muat ulang halaman.");
+      });
   };
 
   useEffect(() => {
@@ -48,7 +54,9 @@ export default function TeacherAttendancePage() {
         const data = res.data.data.data || res.data.data;
         setSchedules(Array.isArray(data) ? data : []);
       })
-      .catch(() => {});
+      .catch(() => {
+        setLoadError("Gagal memuat daftar jadwal.");
+      });
   }, []);
 
   const handleCreateSession = async (e: React.FormEvent) => {
@@ -103,6 +111,7 @@ export default function TeacherAttendancePage() {
 
   const captureAndRecognize = useCallback(async () => {
     if (!videoRef.current || !canvasRef.current || !selectedSessionId) return;
+    if (recognizingRef.current) return;
 
     const video = videoRef.current;
     if (video.readyState < 2) return;
@@ -116,6 +125,7 @@ export default function TeacherAttendancePage() {
     ctx.drawImage(video, 0, 0);
     canvas.toBlob(async (blob) => {
       if (!blob) return;
+      recognizingRef.current = true;
 
       const formData = new FormData();
       formData.append("image", blob, "frame.jpg");
@@ -128,6 +138,7 @@ export default function TeacherAttendancePage() {
 
         const data = res.data;
         setResults(data.faces || []);
+        setRecognizeError(null);
 
         const newStats = {
           detected: data.faces?.length || 0,
@@ -137,7 +148,9 @@ export default function TeacherAttendancePage() {
         };
         setStats(newStats);
       } catch {
-        // AI service error - silent
+        setRecognizeError("Gagal memproses frame. Periksa koneksi ke server / layanan AI.");
+      } finally {
+        recognizingRef.current = false;
       }
     }, "image/jpeg", 0.8);
   }, [selectedSessionId]);
@@ -195,6 +208,13 @@ export default function TeacherAttendancePage() {
             {showCreateForm ? "Batal" : "Buat Sesi"}
           </Button>
         </div>
+
+        {loadError && (
+          <div className="flex items-center gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            <AlertCircle className="h-4 w-4" />
+            {loadError}
+          </div>
+        )}
 
         {showCreateForm && (
           <Card>
@@ -306,6 +326,9 @@ export default function TeacherAttendancePage() {
                     </div>
                   )}
                 </div>
+                {recognizeError && (
+                  <p className="mt-2 text-xs text-red-600">{recognizeError}</p>
+                )}
               </CardContent>
             </Card>
           </div>

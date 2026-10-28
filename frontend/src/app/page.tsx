@@ -121,7 +121,12 @@ const AnimatedSection = ({
   className = "",
   delay = 0,
   ...props
-}: any) => {
+}: {
+  children?: React.ReactNode;
+  className?: string;
+  delay?: number;
+  [key: string]: unknown;
+}) => {
   const ref = useRef(null);
   const isInView = useInView(ref, { once: true, amount: 0.2 });
 
@@ -145,7 +150,12 @@ const AnimatedCard = ({
   className = "",
   delay = 0,
   index = 0,
-}: any) => {
+}: {
+  children?: React.ReactNode;
+  className?: string;
+  delay?: number;
+  index?: number;
+}) => {
   const ref = useRef(null);
   const isInView = useInView(ref, { once: true, amount: 0.2 });
 

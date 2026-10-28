@@ -82,29 +82,35 @@ class DashboardController extends Controller
 
         $classes = ClassModel::withCount('students')
             ->where('status', 'active')
-            ->get()
-            ->map(function ($class) use ($today) {
-                $totalStudents = $class->students_count;
-                $presentToday = Attendance::whereHas('student', function ($q) use ($class) {
-                    $q->where('class_id', $class->id);
-                })->whereDate('detected_at', $today)
-                    ->where('status', 'HADIR')
-                    ->count();
+            ->get();
 
-                return [
-                    'class_id' => $class->id,
-                    'class_name' => $class->name,
-                    'total_students' => $totalStudents,
-                    'present_today' => $presentToday,
-                    'attendance_rate' => $totalStudents > 0
-                        ? round(($presentToday / $totalStudents) * 100, 1)
-                        : 0,
-                ];
-            });
+        $presentCounts = Attendance::query()
+            ->join('students', 'students.id', '=', 'attendances.student_id')
+            ->whereDate('attendances.detected_at', $today)
+            ->where('attendances.status', 'HADIR')
+            ->whereIn('students.class_id', $classes->modelKeys())
+            ->groupBy('students.class_id')
+            ->selectRaw('students.class_id, count(*) as present_count')
+            ->pluck('present_count', 'students.class_id');
+
+        $data = $classes->map(function ($class) use ($presentCounts) {
+            $totalStudents = $class->students_count;
+            $presentToday = (int) ($presentCounts[$class->id] ?? 0);
+
+            return [
+                'class_id' => $class->id,
+                'class_name' => $class->name,
+                'total_students' => $totalStudents,
+                'present_today' => $presentToday,
+                'attendance_rate' => $totalStudents > 0
+                    ? round(($presentToday / $totalStudents) * 100, 1)
+                    : 0,
+            ];
+        });
 
         return response()->json([
             'success' => true,
-            'data' => $classes,
+            'data' => $data,
         ]);
     }
 

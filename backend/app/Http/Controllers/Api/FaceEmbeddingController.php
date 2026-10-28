@@ -7,6 +7,7 @@ use App\Models\FaceEmbedding;
 use App\Models\Student;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 
 class FaceEmbeddingController extends Controller
@@ -22,7 +23,7 @@ class FaceEmbeddingController extends Controller
     public function store(Request $request, Student $student): JsonResponse
     {
         $request->validate([
-            'images.*' => 'required|image|mimes:jpeg,jpg,png|max:2048',
+            'images.*' => 'required|image|mimes:jpeg,jpg,png|max:8192',
         ]);
 
         if (! $request->hasFile('images')) {
@@ -38,7 +39,7 @@ class FaceEmbeddingController extends Controller
 
         foreach ($request->file('images') as $index => $image) {
             try {
-                $response = Http::attach(
+                $response = Http::timeout(30)->attach(
                     'image',
                     file_get_contents($image->getRealPath()),
                     $image->getClientOriginalName()
@@ -61,16 +62,31 @@ class FaceEmbeddingController extends Controller
             }
         }
 
-        $savedCount = 0;
-        foreach ($embeddings as $embedding) {
-            FaceEmbedding::create([
-                'student_id' => $student->id,
-                'embedding' => $embedding,
-                'model_name' => 'facenet',
-                'model_version' => '1.0',
-            ]);
-            $savedCount++;
+        if ($errors !== [] && $embeddings === []) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Tidak ada embedding yang berhasil disimpan.',
+                'data' => [
+                    'student_id' => $student->id,
+                    'embeddings_saved' => 0,
+                    'total_processed' => 0,
+                    'errors' => $errors,
+                ],
+            ], 422);
         }
+
+        $savedCount = 0;
+        DB::transaction(function () use ($student, $embeddings, &$savedCount): void {
+            foreach ($embeddings as $embedding) {
+                FaceEmbedding::create([
+                    'student_id' => $student->id,
+                    'embedding' => $embedding,
+                    'model_name' => 'facenet',
+                    'model_version' => '1.0',
+                ]);
+                $savedCount++;
+            }
+        });
 
         return response()->json([
             'success' => true,

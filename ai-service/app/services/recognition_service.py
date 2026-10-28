@@ -7,6 +7,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 from config import FACE_MATCH_THRESHOLD, EMBEDDING_DIMENSION
+from app.services.face_detector_service import FaceDetectorService
 from app.services.yolo_service import YOLOService
 from app.services.facenet_service import FaceNetService
 from app.preprocessing.face_preprocessing import preprocess_face, augment_face
@@ -17,11 +18,20 @@ class RecognitionService:
     def __init__(self):
         self.yolo = YOLOService()
         self.facenet = FaceNetService()
+        self.face_detector = FaceDetectorService()
         self.threshold = FACE_MATCH_THRESHOLD
 
     def load_models(self):
         self.yolo.load_model()
         self.facenet.load_model()
+        self.face_detector.load_model()
+
+    def detect_faces(self, image):
+        """Face detection with YuNet preferred; falls back to YOLO (person-box, lower quality)."""
+        if self.face_detector.loaded:
+            return self.face_detector.detect_faces(image)
+        print("[WARNING] Using YOLO person detection instead of a face detector.")
+        return self.yolo.detect_faces(image)
 
     def update_threshold(self, threshold: float):
         self.threshold = threshold
@@ -35,13 +45,13 @@ class RecognitionService:
         timing = {}
 
         detect_start = time.time()
-        detections = self.yolo.detect_faces(image)
+        detections = self.detect_faces(image)
         timing["detection_ms"] = round((time.time() - detect_start) * 1000, 2)
 
         results = []
         embed_start = time.time()
         for det in detections:
-            face_crop = preprocess_face(image, det["bbox"])
+            face_crop = preprocess_face(image, det["bbox"], det.get("landmarks"))
             embedding = self.facenet.generate_embedding(face_crop)
             timing["embedding_ms"] = round((time.time() - embed_start) * 1000, 2)
 

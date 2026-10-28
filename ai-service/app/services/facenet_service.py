@@ -32,6 +32,10 @@ class FaceNetService:
         print(f"[INFO] FaceNet model ready on {DEVICE}")
 
     def generate_embedding(self, face_image: np.ndarray) -> np.ndarray:
+        """Generate a 512-D L2-normalised embedding from a uint8 0..255 face crop.
+        Standardisation to [-1,1] happens exactly here (single source of truth) so
+        enrollment, augmentation and recognition use identical preprocessing.
+        """
         if not self.loaded:
             raise RuntimeError("FaceNet model not loaded")
 
@@ -42,8 +46,7 @@ class FaceNetService:
         if face_image.dtype != np.float32:
             face_image = face_image.astype(np.float32)
 
-        if face_image.max() > 1.0:
-            face_image = (face_image - 127.5) / 128.0
+        face_image = (face_image - 127.5) / 128.0
 
         if len(face_image.shape) == 3:
             if face_image.shape[2] == 3:

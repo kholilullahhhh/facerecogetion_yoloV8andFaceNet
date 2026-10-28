@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { isAxiosError } from "axios";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,8 +26,15 @@ export default function LoginPage() {
     try {
       await login(email, password);
     } catch (err: unknown) {
-      const message =
-        err instanceof Error ? err.message : "Gagal masuk. Periksa kembali email dan password Anda.";
+      let message = "Gagal masuk. Periksa kembali email dan password Anda.";
+      if (isAxiosError(err)) {
+        const data = err.response?.data as { message?: string } | undefined;
+        if (data?.message) {
+          message = data.message;
+        } else if (err.response && err.response.status >= 500) {
+          message = "Server bermasalah. Coba beberapa saat lagi.";
+        }
+      }
       setError(message);
     } finally {
       setLoading(false);

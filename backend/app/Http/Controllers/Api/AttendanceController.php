@@ -5,10 +5,13 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Attendance;
 use App\Models\AttendanceSession;
+use App\Models\Schedule;
 use App\Models\Student;
 use Carbon\Carbon;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 
 class AttendanceController extends Controller
@@ -22,39 +25,45 @@ class AttendanceController extends Controller
         ]);
 
         $teacher = $request->user()->teacher;
-        if (! $teacher) {
+        if ($request->user()->role !== 'ADMIN' && ! $teacher) {
             return response()->json([
                 'success' => false,
                 'message' => 'Data guru tidak ditemukan.',
             ], 400);
         }
 
-        $existingSession = AttendanceSession::where('schedule_id', $validated['schedule_id'])
-            ->where('date', $validated['date'])
-            ->where('status', 'active')
-            ->first();
-
-        if ($existingSession) {
+        $schedule = Schedule::find($validated['schedule_id']);
+        if ($request->user()->role !== 'ADMIN' && $schedule->teacher_id !== $teacher->id) {
             return response()->json([
-                'success' => true,
-                'data' => $existingSession->load(['schedule.class', 'schedule.subject', 'teacher']),
-                'message' => 'Sesi absensi sudah aktif.',
-            ]);
+                'success' => false,
+                'message' => 'Anda hanya dapat membuat sesi untuk jadwal Anda sendiri.',
+            ], 403);
         }
 
-        $session = AttendanceSession::create([
-            'schedule_id' => $validated['schedule_id'],
-            'teacher_id' => $teacher->id,
-            'date' => $validated['date'],
-            'start_time' => $validated['start_time'],
-            'status' => 'active',
-        ]);
+        $session = DB::transaction(function () use ($validated, $teacher, $schedule) {
+            return AttendanceSession::where('schedule_id', $validated['schedule_id'])
+                ->where('date', $validated['date'])
+                ->where('status', 'active')
+                ->lockForUpdate()
+                ->first()
+                ?? AttendanceSession::create([
+                    'schedule_id' => $validated['schedule_id'],
+                    'teacher_id' => $teacher?->id ?? $schedule->teacher_id,
+                    'date' => $validated['date'],
+                    'start_time' => $validated['start_time'],
+                    'status' => 'active',
+                ]);
+        });
+
+        $message = $session->wasRecentlyCreated
+            ? 'Sesi absensi berhasil dibuat.'
+            : 'Sesi absensi sudah aktif.';
 
         return response()->json([
             'success' => true,
             'data' => $session->load(['schedule.class', 'schedule.subject', 'teacher']),
-            'message' => 'Sesi absensi berhasil dibuat.',
-        ], 201);
+            'message' => $message,
+        ], $session->wasRecentlyCreated ? 201 : 200);
     }
 
     public function getSessions(Request $request): JsonResponse
@@ -62,6 +71,10 @@ class AttendanceController extends Controller
         $query = AttendanceSession::with(['schedule.class', 'schedule.subject', 'teacher'])
             ->orderByDesc('date')
             ->orderByDesc('created_at');
+
+        if ($request->user()->role !== 'ADMIN') {
+            $query->where('teacher_id', $request->user()->teacher?->id ?? 0);
+        }
 
         if ($request->has('status')) {
             $query->where('status', $request->status);
@@ -75,8 +88,15 @@ class AttendanceController extends Controller
         ]);
     }
 
-    public function getSession(AttendanceSession $session): JsonResponse
+    public function getSession(Request $request, AttendanceSession $session): JsonResponse
     {
+        if (! $this->authorizeSession($request, $session)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Anda tidak memiliki akses ke sesi ini.',
+            ], 403);
+        }
+
         return response()->json([
             'success' => true,
             'data' => $session->load([
@@ -88,8 +108,15 @@ class AttendanceController extends Controller
         ]);
     }
 
-    public function closeSession(AttendanceSession $session): JsonResponse
+    public function closeSession(Request $request, AttendanceSession $session): JsonResponse
     {
+        if (! $this->authorizeSession($request, $session)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Anda tidak memiliki akses ke sesi ini.',
+            ], 403);
+        }
+
         $session->update([
             'status' => 'closed',
             'end_time' => now()->format('H:i'),
@@ -99,6 +126,18 @@ class AttendanceController extends Controller
             'success' => true,
             'message' => 'Sesi absensi berhasil ditutup.',
         ]);
+    }
+
+    /**
+     * Admin may access every session; a teacher only their own sessions.
+     */
+    private function authorizeSession(Request $request, AttendanceSession $session): bool
+    {
+        if ($request->user()->role === 'ADMIN') {
+            return true;
+        }
+
+        return $session->teacher_id === $request->user()->teacher?->id;
     }
 
     public function recordAttendance(Request $request): JsonResponse
@@ -112,11 +151,29 @@ class AttendanceController extends Controller
         ]);
 
         $session = AttendanceSession::find($validated['attendance_session_id']);
+        if (! $this->authorizeSession($request, $session)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Anda tidak memiliki akses ke sesi ini.',
+            ], 403);
+        }
+
         if ($session->status !== 'active') {
             return response()->json([
                 'success' => false,
                 'message' => 'Sesi absensi sudah ditutup.',
             ], 400);
+        }
+
+        $inSessionClass = Student::where('id', $validated['student_id'])
+            ->where('class_id', $session->schedule->class_id)
+            ->where('status', 'active')
+            ->exists();
+        if (! $inSessionClass) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Siswa bukan anggota kelas pada sesi ini.',
+            ], 422);
         }
 
         $existing = Attendance::where('attendance_session_id', $validated['attendance_session_id'])
@@ -137,14 +194,26 @@ class AttendanceController extends Controller
             ]);
         }
 
-        $attendance = Attendance::create([
-            'attendance_session_id' => $validated['attendance_session_id'],
-            'student_id' => $validated['student_id'],
-            'status' => $validated['status'],
-            'distance' => $validated['distance'],
-            'recognition_confidence' => $validated['recognition_confidence'] ?? null,
-            'detected_at' => now(),
-        ]);
+        try {
+            $attendance = Attendance::create([
+                'attendance_session_id' => $validated['attendance_session_id'],
+                'student_id' => $validated['student_id'],
+                'status' => $validated['status'],
+                'distance' => $validated['distance'],
+                'recognition_confidence' => $validated['recognition_confidence'] ?? null,
+                'detected_at' => now(),
+            ]);
+        } catch (UniqueConstraintViolationException) {
+            $attendance = Attendance::where('attendance_session_id', $validated['attendance_session_id'])
+                ->where('student_id', $validated['student_id'])
+                ->first();
+
+            return response()->json([
+                'success' => true,
+                'data' => $attendance,
+                'message' => 'Sudah tercatat. Data diperbarui.',
+            ]);
+        }
 
         return response()->json([
             'success' => true,
@@ -157,10 +226,17 @@ class AttendanceController extends Controller
     {
         $request->validate([
             'attendance_session_id' => 'required|exists:attendance_sessions,id',
-            'image' => 'required|image|mimes:jpeg,jpg,png|max:4096',
+            'image' => 'required|image|mimes:jpeg,jpg,png|max:8192',
         ]);
 
         $session = AttendanceSession::find($request->attendance_session_id);
+        if (! $this->authorizeSession($request, $session)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Anda tidak memiliki akses ke sesi ini.',
+            ], 403);
+        }
+
         if ($session->status !== 'active') {
             return response()->json([
                 'success' => false,
@@ -189,13 +265,12 @@ class AttendanceController extends Controller
         }
 
         try {
-            $response = Http::attach(
-                'image',
-                file_get_contents($request->file('image')->getRealPath()),
-                $request->file('image')->getClientOriginalName()
-            )->post("{$aiServiceUrl}/recognize", [
-                'embeddings_json' => json_encode($allEmbeddings),
-            ]);
+            $response = Http::timeout(30)
+                ->attach('image',
+                    file_get_contents($request->file('image')->getRealPath()),
+                    $request->file('image')->getClientOriginalName())
+                ->attach('embeddings_json', json_encode($allEmbeddings), 'embeddings.json')
+                ->post("{$aiServiceUrl}/recognize");
 
             if (! $response->successful()) {
                 return response()->json([
@@ -233,15 +308,20 @@ class AttendanceController extends Controller
                     $record['status'] = 'already_recorded';
                 } else {
                     $attendanceStatus = $this->determineAttendanceStatus($session);
-                    Attendance::create([
-                        'attendance_session_id' => $session->id,
-                        'student_id' => $face['student_id'],
-                        'status' => $attendanceStatus,
-                        'distance' => $face['distance'],
-                        'recognition_confidence' => $face['detection_confidence'],
-                        'detected_at' => now(),
-                    ]);
-                    $record['status'] = 'recorded';
+                    try {
+                        Attendance::create([
+                            'attendance_session_id' => $session->id,
+                            'student_id' => $face['student_id'],
+                            'status' => $attendanceStatus,
+                            'distance' => $face['distance'],
+                            'recognition_confidence' => $face['detection_confidence'],
+                            'detected_at' => now(),
+                        ]);
+                        $record['status'] = 'recorded';
+                    } catch (UniqueConstraintViolationException) {
+                        // A concurrent request recorded the same student first.
+                        $record['status'] = 'already_recorded';
+                    }
                 }
             }
 
@@ -257,12 +337,15 @@ class AttendanceController extends Controller
 
     private function determineAttendanceStatus(AttendanceSession $session): string
     {
-        $schedule = $session->schedule;
-        $now = now();
-        $startTime = Carbon::parse($session->date.' '.$schedule->start_time);
+        // Raw DB values: the model casts turn `date`/`start_time` into full
+        // datetimes, so concatenating the accessors produces an unparseable string.
+        $startTime = Carbon::parse(
+            $session->getRawOriginal('date').' '.$session->schedule->getRawOriginal('start_time'),
+            config('app.timezone')
+        );
         $lateThreshold = $startTime->copy()->addMinutes(15);
 
-        if ($now->greaterThan($lateThreshold)) {
+        if (now(config('app.timezone'))->greaterThan($lateThreshold)) {
             return 'TERLAMBAT';
         }
 

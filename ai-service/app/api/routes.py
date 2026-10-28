@@ -45,7 +45,7 @@ async def detect_faces(image: UploadFile = File(...)):
     if img is None:
         raise HTTPException(status_code=400, detail="Invalid image")
 
-    detections = recognition_service.yolo.detect_faces(img)
+    detections = recognition_service.detect_faces(img)
     elapsed = round((time.time() - start) * 1000, 2)
 
     return {
@@ -65,13 +65,13 @@ async def generate_embedding(image: UploadFile = File(...)):
     if img is None:
         raise HTTPException(status_code=400, detail="Invalid image")
 
-    detections = recognition_service.yolo.detect_faces(img)
+    detections = recognition_service.detect_faces(img)
     if len(detections) == 0:
         raise HTTPException(status_code=400, detail="No face detected in image")
     if len(detections) > 1:
         raise HTTPException(status_code=400, detail="Multiple faces detected. Upload image with single face.")
 
-    face = preprocess_face(img, detections[0]["bbox"])
+    face = preprocess_face(img, detections[0]["bbox"], detections[0].get("landmarks"))
     validation = validate_face_image(face)
     if not validation["valid"]:
         raise HTTPException(status_code=400, detail=f"Face validation failed: {validation['issues']}")
@@ -96,13 +96,13 @@ async def register_face(image: UploadFile = File(...), augment: bool = True):
     if img is None:
         raise HTTPException(status_code=400, detail="Invalid image")
 
-    detections = recognition_service.yolo.detect_faces(img)
+    detections = recognition_service.detect_faces(img)
     if len(detections) == 0:
         raise HTTPException(status_code=400, detail="No face detected")
     if len(detections) > 1:
         raise HTTPException(status_code=400, detail="Multiple faces detected")
 
-    face = preprocess_face(img, detections[0]["bbox"])
+    face = preprocess_face(img, detections[0]["bbox"], detections[0].get("landmarks"))
     embeddings = recognition_service.register_face(face, augment=augment)
     elapsed = round((time.time() - start) * 1000, 2)
 
@@ -117,7 +117,7 @@ async def register_face(image: UploadFile = File(...), augment: bool = True):
 @router.post("/recognize")
 async def recognize_faces(
     image: UploadFile = File(...),
-    embeddings_json: Optional[str] = None,
+    embeddings_json: Optional[UploadFile] = File(None),
 ):
     start = time.time()
     image_bytes = await image.read()
@@ -127,10 +127,11 @@ async def recognize_faces(
         raise HTTPException(status_code=400, detail="Invalid image")
 
     registered_embeddings = []
-    if embeddings_json:
+    if embeddings_json is not None:
+        raw = await embeddings_json.read()
         try:
-            registered_embeddings = json.loads(embeddings_json)
-        except json.JSONDecodeError:
+            registered_embeddings = json.loads(raw)
+        except (json.JSONDecodeError, UnicodeDecodeError):
             raise HTTPException(status_code=400, detail="Invalid embeddings JSON")
 
     result = recognition_service.recognize_faces(img, registered_embeddings)

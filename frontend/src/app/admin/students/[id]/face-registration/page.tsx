@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from "react";
 import { useParams } from "next/navigation";
+import { isAxiosError } from "axios";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -21,9 +22,13 @@ export default function FaceRegistrationPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    api.get(`/admin/students/${params.id}`).then((res) => {
-      setStudentName(res.data.data.name);
-    });
+    api.get(`/admin/students/${params.id}`)
+      .then((res) => {
+        setStudentName(res.data.data.name);
+      })
+      .catch(() => {
+        setResult("Gagal memuat data siswa.");
+      });
   }, [params.id]);
 
   const startCamera = async () => {
@@ -91,11 +96,32 @@ export default function FaceRegistrationPage() {
       const res = await api.post(`/admin/students/${params.id}/embeddings`, formData, {
         headers: { "Content-Type": "multipart/form-data" },
       });
-      setResult(`Berhasil: ${res.data.data.embeddings_saved} embedding disimpan.`);
+      const data = res.data.data || {};
+      const errors: string[] = data.errors || [];
+      if (errors.length > 0) {
+        setResult(`Berhasil: ${data.embeddings_saved} embedding disimpan. ${errors.length} gambar gagal diproses. Contoh: ${errors[0]}`);
+      } else {
+        setResult(`Berhasil: ${data.embeddings_saved} embedding disimpan.`);
+      }
       setCapturedImages([]);
       stopCamera();
-    } catch {
-      setResult("Gagal mendaftarkan wajah.");
+    } catch (err: unknown) {
+      let msg = "Gagal mendaftarkan wajah.";
+      if (isAxiosError(err)) {
+        const data = err.response?.data as
+          { message?: string; data?: { errors?: string[] } } | undefined;
+        const errs: string[] = data?.data?.errors || [];
+        if (data?.message) {
+          msg = data.message;
+        }
+        if (errs.length > 0) {
+          msg += ` Contoh: ${errs[0]}`;
+        }
+        if (!err.response) {
+          msg = "Tidak dapat menghubungi server.";
+        }
+      }
+      setResult(msg);
     } finally {
       setLoading(false);
     }
