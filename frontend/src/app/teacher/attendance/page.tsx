@@ -31,6 +31,7 @@ export default function TeacherAttendancePage() {
   const [recognizeError, setRecognizeError] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const captureCanvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const recognizingRef = useRef(false);
@@ -106,6 +107,7 @@ export default function TeacherAttendancePage() {
     if (videoRef.current) {
       videoRef.current.srcObject = null;
     }
+    setResults([]);
     setIsCameraActive(false);
   };
 
@@ -116,14 +118,18 @@ export default function TeacherAttendancePage() {
     const video = videoRef.current;
     if (video.readyState < 2) return;
 
-    const canvas = canvasRef.current;
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    const ctx = canvas.getContext("2d");
+    // Capture on an offscreen canvas: the visible overlay canvas must never
+    // hold a video snapshot, otherwise the live preview freezes for the whole
+    // duration of the recognition request (the reported "lagging frames").
+    const captureCanvas = captureCanvasRef.current;
+    if (!captureCanvas) return;
+    captureCanvas.width = video.videoWidth;
+    captureCanvas.height = video.videoHeight;
+    const ctx = captureCanvas.getContext("2d");
     if (!ctx) return;
 
     ctx.drawImage(video, 0, 0);
-    canvas.toBlob(async (blob) => {
+    captureCanvas.toBlob(async (blob) => {
       if (!blob) return;
       recognizingRef.current = true;
 
@@ -177,24 +183,55 @@ export default function TeacherAttendancePage() {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    // Raster the overlay at the element's displayed size (device-pixel aware),
+    // so 1 bitmap px maps to 1 screen px regardless of the camera resolution.
+    const rect = canvas.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    const w = Math.max(1, Math.round(rect.width * dpr));
+    const h = Math.max(1, Math.round(rect.height * dpr));
+    if (canvas.width !== w || canvas.height !== h) {
+      canvas.width = w;
+      canvas.height = h;
+    }
+    ctx.clearRect(0, 0, w, h);
+
+    const video = videoRef.current;
+    if (!video || !video.videoWidth || results.length === 0) return;
+
+    // Replicate the <video> object-fit: cover mapping (scale to cover the box,
+    // crop centered) so bbox coords land exactly on the face in the preview.
+    const scale = Math.max(w / video.videoWidth, h / video.videoHeight);
+    const ox = (w - video.videoWidth * scale) / 2;
+    const oy = (h - video.videoHeight * scale) / 2;
+
     results.forEach((face) => {
       const { bbox } = face;
+      const x1 = bbox.x1 * scale + ox;
+      const y1 = bbox.y1 * scale + oy;
+      const x2 = bbox.x2 * scale + ox;
+      const y2 = bbox.y2 * scale + oy;
+      const k = scale * dpr;
+
       ctx.strokeStyle = face.matched ? "#22c55e" : "#ef4444";
-      ctx.lineWidth = 2;
-      ctx.strokeRect(bbox.x1, bbox.y1, bbox.x2 - bbox.x1, bbox.y2 - bbox.y1);
+      ctx.lineWidth = Math.max(1.5, 2 * k);
+      ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
 
       ctx.fillStyle = face.matched ? "#22c55e" : "#ef4444";
-      ctx.fillRect(bbox.x1, bbox.y1 - 24, bbox.x2 - bbox.x1, 24);
+      ctx.fillRect(x1, y1 - 24 * k, x2 - x1, 24 * k);
 
       ctx.fillStyle = "#fff";
-      ctx.font = "12px sans-serif";
-      const label = face.matched ? face.student_name : "Unknown";
-      ctx.fillText(label || "Unknown", bbox.x1 + 4, bbox.y1 - 6);
+      ctx.font = `${12 * k}px sans-serif`;
+      ctx.fillText(face.matched ? face.student_name || "Unknown" : "Unknown", x1 + 4 * k, y1 - 6 * k);
     });
   }, [results]);
 
   useEffect(() => { drawBoundingBoxes(); }, [drawBoundingBoxes]);
+
+  // Keep boxes aligned when the preview box resizes (window resize/zoom).
+  useEffect(() => {
+    window.addEventListener("resize", drawBoundingBoxes);
+    return () => window.removeEventListener("resize", drawBoundingBoxes);
+  }, [drawBoundingBoxes]);
 
   const canStartCamera = selectedSessionId !== null;
 
@@ -315,6 +352,7 @@ export default function TeacherAttendancePage() {
                 <div className="relative aspect-video w-full overflow-hidden rounded-lg bg-black">
                   <video ref={videoRef} autoPlay playsInline muted className="h-full w-full object-cover" />
                   <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" />
+                  <canvas ref={captureCanvasRef} className="hidden" />
                   {!isCameraActive && (
                     <div className="absolute inset-0 flex items-center justify-center">
                       <div className="text-center text-white">
