@@ -1,0 +1,22 @@
+{
+  "epochs_requested": 20,
+  "imgsz": 640,
+  "batch": 4,
+  "metrics_last_row": {
+    "epoch": "20",
+    "time": "49938.7",
+    "train/box_loss": "0.60571",
+    "train/cls_loss": "0.43685",
+    "train/dfl_loss": "0.97325",
+    "metrics/precision(B)": "0.99563",
+    "metrics/recall(B)": "0.96078",
+    "metrics/mAP50(B)": "0.9935",
+    "metrics/mAP50-95(B)": "0.86019",
+    "val/box_loss": "0.62118",
+    "val/cls_loss": "0.45222",
+    "val/dfl_loss": "1.02806",
+    "lr/pg0": "0.000119",
+    "lr/pg1": "0.000119",
+    "lr/pg2": "0.000119"
+  }
+}

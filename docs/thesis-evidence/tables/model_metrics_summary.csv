@@ -1,0 +1,5 @@
+model,AUC,EER_pct,EER_threshold,best_threshold,GAR_at_best_thr_pct,genuine_mean_dist,genuine_max_dist,impostor_mean_dist,impostor_min_dist,unknown_mean_min_dist,n_genuine_pairs,n_impostor_pairs,n_unknown_crops
+baseline,0.9849837980871652,6.85,0.8548,0.7254,92.47,0.5188,1.1664,1.0978,0.5822,0.8137,93,3836,150
+facenet_ep07,0.9974716046060524,1.82,1.1578,1.1578,97.85,0.7828,1.2808,1.4272,0.7506,1.0323,93,3836,150
+facenet_ep15,0.9835598237411282,5.4,1.0235,1.0463,96.77,0.776,1.1409,1.2958,0.4333,0.8352,93,3836,150
+facenet_ep30,0.996782042225885,2.99,1.158,1.1585,97.85,0.8073,1.2056,1.4055,0.5823,0.9896,93,3836,150

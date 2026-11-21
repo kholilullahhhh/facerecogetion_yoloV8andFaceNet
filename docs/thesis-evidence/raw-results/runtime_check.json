@@ -1,0 +1,11 @@
+{
+  "checked_at": "2026-11-05 02:13:03",
+  "status_code": 200,
+  "body": {
+    "status": "healthy",
+    "yolo_loaded": true,
+    "facenet_loaded": true,
+    "device": "cpu",
+    "threshold": 1.0
+  }
+}

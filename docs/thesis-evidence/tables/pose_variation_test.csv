@@ -1,0 +1,4 @@
+condition,n_test,recognized,not_recognized,accuracy_pct,mean_min_dist,unknown_rejected,wrong_identity
+Menghadap depan,93,77,16,82.8,0.7659,10,6
+Menoleh kiri,93,74,19,79.57,0.8201,14,5
+Menoleh kanan,93,73,20,78.49,0.8205,15,5

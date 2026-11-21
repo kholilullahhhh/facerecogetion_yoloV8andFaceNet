@@ -1,0 +1,900 @@
+{
+  "service_base": "http://127.0.0.1:8001",
+  "run_at": "2026-11-05 01:59:49",
+  "embedding_dimension": 512,
+  "detect": {
+    "samples": [
+      {
+        "file": "IMG_20260930_095949.jpg",
+        "student": "s001",
+        "resp_ms": 622.6,
+        "wall_ms": 652.4,
+        "faces": 1,
+        "status": 200
+      },
+      {
+        "file": "IMG_20260930_100003.jpg",
+        "student": "s001",
+        "resp_ms": 729.19,
+        "wall_ms": 758.2,
+        "faces": 1,
+        "status": 200
+      },
+      {
+        "file": "IMG_20260930_100007.jpg",
+        "student": "s001",
+        "resp_ms": 668.5,
+        "wall_ms": 696.6,
+        "faces": 1,
+        "status": 200
+      },
+      {
+        "file": "IMG_20260930_100136.jpg",
+        "student": "s002",
+        "resp_ms": 704.49,
+        "wall_ms": 728.5,
+        "faces": 1,
+        "status": 200
+      },
+      {
+        "file": "IMG_20260930_100141.jpg",
+        "student": "s002",
+        "resp_ms": 601.02,
+        "wall_ms": 650.9,
+        "faces": 1,
+        "status": 200
+      },
+      {
+        "file": "IMG_20260930_100143.jpg",
+        "student": "s002",
+        "resp_ms": 791.07,
+        "wall_ms": 814.5,
+        "faces": 1,
+        "status": 200
+      },
+      {
+        "file": "IMG_20260930_100252.jpg",
+        "student": "s003",
+        "resp_ms": 745.32,
+        "wall_ms": 792.5,
+        "faces": 1,
+        "status": 200
+      },
+      {
+        "file": "IMG_20260930_100255.jpg",
+        "student": "s003",
+        "resp_ms": 526.04,
+        "wall_ms": 558.1,
+        "faces": 1,
+        "status": 200
+      },
+      {
+        "file": "IMG_20260930_100257.jpg",
+        "student": "s003",
+        "resp_ms": 578.99,
+        "wall_ms": 610.1,
+        "faces": 1,
+        "status": 200
+      },
+      {
+        "file": "IMG_20260930_100407.jpg",
+        "student": "s004",
+        "resp_ms": 715.01,
+        "wall_ms": 746.9,
+        "faces": 1,
+        "status": 200
+      },
+      {
+        "file": "IMG_20260930_100413.jpg",
+        "student": "s004",
+        "resp_ms": 740.78,
+        "wall_ms": 781.6,
+        "faces": 1,
+        "status": 200
+      },
+      {
+        "file": "IMG_20260930_100417.jpg",
+        "student": "s004",
+        "resp_ms": 666.69,
+        "wall_ms": 706.0,
+        "faces": 1,
+        "status": 200
+      },
+      {
+        "file": "IMG_20260930_100634.jpg",
+        "student": "s005",
+        "resp_ms": 730.5,
+        "wall_ms": 762.5,
+        "faces": 1,
+        "status": 200
+      },
+      {
+        "file": "IMG_20260930_100636.jpg",
+        "student": "s005",
+        "resp_ms": 593.33,
+        "wall_ms": 630.6,
+        "faces": 1,
+        "status": 200
+      },
+      {
+        "file": "IMG_20260930_100643.jpg",
+        "student": "s005",
+        "resp_ms": 558.29,
+        "wall_ms": 592.4,
+        "faces": 1,
+        "status": 200
+      },
+      {
+        "file": "IMG_20260930_100747.jpg",
+        "student": "s006",
+        "resp_ms": 692.84,
+        "wall_ms": 723.1,
+        "faces": 1,
+        "status": 200
+      },
+      {
+        "file": "IMG_20260930_100751.jpg",
+        "student": "s006",
+        "resp_ms": 379.53,
+        "wall_ms": 419.7,
+        "faces": 1,
+        "status": 200
+      },
+      {
+        "file": "IMG_20260930_100753.jpg",
+        "student": "s006",
+        "resp_ms": 625.56,
+        "wall_ms": 659.8,
+        "faces": 1,
+        "status": 200
+      },
+      {
+        "file": "IMG_20260930_100834.jpg",
+        "student": "s007",
+        "resp_ms": 499.29,
+        "wall_ms": 542.3,
+        "faces": 1,
+        "status": 200
+      },
+      {
+        "file": "IMG_20260930_100836.jpg",
+        "student": "s007",
+        "resp_ms": 611.17,
+        "wall_ms": 657.9,
+        "faces": 1,
+        "status": 200
+      },
+      {
+        "file": "IMG_20260930_100837.jpg",
+        "student": "s007",
+        "resp_ms": 523.79,
+        "wall_ms": 562.6,
+        "faces": 1,
+        "status": 200
+      },
+      {
+        "file": "IMG_20260930_101023.jpg",
+        "student": "s009",
+        "resp_ms": 646.71,
+        "wall_ms": 683.4,
+        "faces": 1,
+        "status": 200
+      },
+      {
+        "file": "IMG_20260930_101026.jpg",
+        "student": "s009",
+        "resp_ms": 596.8,
+        "wall_ms": 637.1,
+        "faces": 1,
+        "status": 200
+      },
+      {
+        "file": "IMG_20260930_101027.jpg",
+        "student": "s009",
+        "resp_ms": 640.3,
+        "wall_ms": 671.6,
+        "faces": 1,
+        "status": 200
+      },
+      {
+        "file": "IMG_20260930_101054.jpg",
+        "student": "s010",
+        "resp_ms": 524.09,
+        "wall_ms": 567.1,
+        "faces": 1,
+        "status": 200
+      },
+      {
+        "file": "IMG_20260930_101055.jpg",
+        "student": "s010",
+        "resp_ms": 395.06,
+        "wall_ms": 433.8,
+        "faces": 1,
+        "status": 200
+      },
+      {
+        "file": "IMG_20260930_101057.jpg",
+        "student": "s010",
+        "resp_ms": 617.69,
+        "wall_ms": 645.9,
+        "faces": 1,
+        "status": 200
+      }
+    ],
+    "stats_resp_ms": {
+      "n": 27,
+      "mean": 619.4,
+      "median": 622.6,
+      "p95": 745.3,
+      "min": 379.5,
+      "max": 791.1
+    },
+    "stats_wall_ms": {
+      "n": 27,
+      "mean": 655.0,
+      "median": 657.9,
+      "p95": 792.5,
+      "min": 419.7,
+      "max": 814.5
+    }
+  },
+  "embedding": {
+    "samples": [
+      {
+        "file": "IMG_20260930_095949.jpg",
+        "student": "s001",
+        "resp_ms": 1171.23,
+        "wall_ms": 1217.9,
+        "status": 200
+      },
+      {
+        "file": "IMG_20260930_100003.jpg",
+        "student": "s001",
+        "resp_ms": 1070.28,
+        "wall_ms": 1114.8,
+        "status": 200
+      },
+      {
+        "file": "IMG_20260930_100007.jpg",
+        "student": "s001",
+        "resp_ms": 1028.13,
+        "wall_ms": 1061.7,
+        "status": 200
+      },
+      {
+        "file": "IMG_20260930_100136.jpg",
+        "student": "s002",
+        "resp_ms": 1218.05,
+        "wall_ms": 1264.3,
+        "status": 200
+      },
+      {
+        "file": "IMG_20260930_100141.jpg",
+        "student": "s002",
+        "resp_ms": 1077.03,
+        "wall_ms": 1124.2,
+        "status": 200
+      },
+      {
+        "file": "IMG_20260930_100143.jpg",
+        "student": "s002",
+        "resp_ms": 1193.75,
+        "wall_ms": 1234.3,
+        "status": 200
+      },
+      {
+        "file": "IMG_20260930_100252.jpg",
+        "student": "s003",
+        "resp_ms": 1111.43,
+        "wall_ms": 1152.8,
+        "status": 200
+      },
+      {
+        "file": "IMG_20260930_100255.jpg",
+        "student": "s003",
+        "resp_ms": 1114.73,
+        "wall_ms": 1165.3,
+        "status": 200
+      },
+      {
+        "file": "IMG_20260930_100257.jpg",
+        "student": "s003",
+        "resp_ms": 969.1,
+        "wall_ms": 1026.8,
+        "status": 200
+      },
+      {
+        "file": "IMG_20260930_100407.jpg",
+        "student": "s004",
+        "resp_ms": 1062.54,
+        "wall_ms": 1103.4,
+        "status": 200
+      },
+      {
+        "file": "IMG_20260930_100413.jpg",
+        "student": "s004",
+        "resp_ms": 1128.28,
+        "wall_ms": 1178.1,
+        "status": 200
+      },
+      {
+        "file": "IMG_20260930_100417.jpg",
+        "student": "s004",
+        "resp_ms": 1162.58,
+        "wall_ms": 1203.9,
+        "status": 200
+      },
+      {
+        "file": "IMG_20260930_100634.jpg",
+        "student": "s005",
+        "resp_ms": 1276.54,
+        "wall_ms": 1324.2,
+        "status": 200
+      },
+      {
+        "file": "IMG_20260930_100636.jpg",
+        "student": "s005",
+        "resp_ms": 1057.74,
+        "wall_ms": 1092.7,
+        "status": 200
+      },
+      {
+        "file": "IMG_20260930_100643.jpg",
+        "student": "s005",
+        "resp_ms": 1024.61,
+        "wall_ms": 1064.8,
+        "status": 200
+      },
+      {
+        "file": "IMG_20260930_100747.jpg",
+        "student": "s006",
+        "resp_ms": 949.37,
+        "wall_ms": 986.8,
+        "status": 200
+      },
+      {
+        "file": "IMG_20260930_100751.jpg",
+        "student": "s006",
+        "resp_ms": 1035.89,
+        "wall_ms": 1065.1,
+        "status": 200
+      },
+      {
+        "file": "IMG_20260930_100753.jpg",
+        "student": "s006",
+        "resp_ms": 1118.94,
+        "wall_ms": 1168.6,
+        "status": 200
+      },
+      {
+        "file": "IMG_20260930_100834.jpg",
+        "student": "s007",
+        "resp_ms": 910.06,
+        "wall_ms": 956.5,
+        "status": 200
+      },
+      {
+        "file": "IMG_20260930_100836.jpg",
+        "student": "s007",
+        "resp_ms": 1071.27,
+        "wall_ms": 1125.0,
+        "status": 200
+      },
+      {
+        "file": "IMG_20260930_100837.jpg",
+        "student": "s007",
+        "resp_ms": 1176.32,
+        "wall_ms": 1234.6,
+        "status": 200
+      },
+      {
+        "file": "IMG_20260930_101023.jpg",
+        "student": "s009",
+        "resp_ms": 1181.78,
+        "wall_ms": 1227.8,
+        "status": 200
+      },
+      {
+        "file": "IMG_20260930_101026.jpg",
+        "student": "s009",
+        "resp_ms": 974.83,
+        "wall_ms": 1026.8,
+        "status": 200
+      },
+      {
+        "file": "IMG_20260930_101027.jpg",
+        "student": "s009",
+        "resp_ms": 914.93,
+        "wall_ms": 961.2,
+        "status": 200
+      },
+      {
+        "file": "IMG_20260930_101054.jpg",
+        "student": "s010",
+        "resp_ms": 1158.73,
+        "wall_ms": 1210.1,
+        "status": 200
+      },
+      {
+        "file": "IMG_20260930_101055.jpg",
+        "student": "s010",
+        "resp_ms": 911.75,
+        "wall_ms": 963.1,
+        "status": 200
+      },
+      {
+        "file": "IMG_20260930_101057.jpg",
+        "student": "s010",
+        "resp_ms": 711.42,
+        "wall_ms": 754.0,
+        "status": 200
+      }
+    ],
+    "stats_resp_ms": {
+      "n": 27,
+      "mean": 1066.0,
+      "median": 1071.3,
+      "p95": 1218.0,
+      "min": 711.4,
+      "max": 1276.5
+    },
+    "stats_wall_ms": {
+      "n": 27,
+      "mean": 1111.4,
+      "median": 1124.2,
+      "p95": 1264.3,
+      "min": 754.0,
+      "max": 1324.2
+    }
+  },
+  "recognize": {
+    "samples": [
+      {
+        "file": "IMG_20260930_095949.jpg",
+        "student": "s001",
+        "gallery_size": 27,
+        "status": 200,
+        "resp_ms": 1163.13,
+        "wall_ms": 1202.1,
+        "detection_ms": 445.19,
+        "embedding_ms": 473.55,
+        "matching_ms": 10.62,
+        "n_faces": 1,
+        "matched_flags": [
+          true
+        ]
+      },
+      {
+        "file": "IMG_20260930_100003.jpg",
+        "student": "s001",
+        "gallery_size": 27,
+        "status": 200,
+        "resp_ms": 1196.15,
+        "wall_ms": 1232.7,
+        "detection_ms": 482.93,
+        "embedding_ms": 464.14,
+        "matching_ms": 2.19,
+        "n_faces": 1,
+        "matched_flags": [
+          true
+        ]
+      },
+      {
+        "file": "IMG_20260930_100007.jpg",
+        "student": "s001",
+        "gallery_size": 27,
+        "status": 200,
+        "resp_ms": 893.93,
+        "wall_ms": 931.8,
+        "detection_ms": 324.19,
+        "embedding_ms": 385.4,
+        "matching_ms": 1.94,
+        "n_faces": 1,
+        "matched_flags": [
+          true
+        ]
+      },
+      {
+        "file": "IMG_20260930_100136.jpg",
+        "student": "s002",
+        "gallery_size": 27,
+        "status": 200,
+        "resp_ms": 854.51,
+        "wall_ms": 917.0,
+        "detection_ms": 339.85,
+        "embedding_ms": 348.82,
+        "matching_ms": 2.31,
+        "n_faces": 1,
+        "matched_flags": [
+          true
+        ]
+      },
+      {
+        "file": "IMG_20260930_100141.jpg",
+        "student": "s002",
+        "gallery_size": 27,
+        "status": 200,
+        "resp_ms": 1148.03,
+        "wall_ms": 1188.8,
+        "detection_ms": 443.87,
+        "embedding_ms": 468.84,
+        "matching_ms": 1.94,
+        "n_faces": 1,
+        "matched_flags": [
+          true
+        ]
+      },
+      {
+        "file": "IMG_20260930_100143.jpg",
+        "student": "s002",
+        "gallery_size": 27,
+        "status": 200,
+        "resp_ms": 1050.91,
+        "wall_ms": 1082.8,
+        "detection_ms": 476.68,
+        "embedding_ms": 444.99,
+        "matching_ms": 3.32,
+        "n_faces": 1,
+        "matched_flags": [
+          true
+        ]
+      },
+      {
+        "file": "IMG_20260930_100252.jpg",
+        "student": "s003",
+        "gallery_size": 27,
+        "status": 200,
+        "resp_ms": 941.19,
+        "wall_ms": 984.5,
+        "detection_ms": 368.52,
+        "embedding_ms": 458.91,
+        "matching_ms": 1.18,
+        "n_faces": 1,
+        "matched_flags": [
+          true
+        ]
+      },
+      {
+        "file": "IMG_20260930_100255.jpg",
+        "student": "s003",
+        "gallery_size": 27,
+        "status": 200,
+        "resp_ms": 1077.92,
+        "wall_ms": 1104.4,
+        "detection_ms": 419.56,
+        "embedding_ms": 528.12,
+        "matching_ms": 2.31,
+        "n_faces": 1,
+        "matched_flags": [
+          true
+        ]
+      },
+      {
+        "file": "IMG_20260930_100257.jpg",
+        "student": "s003",
+        "gallery_size": 27,
+        "status": 200,
+        "resp_ms": 955.4,
+        "wall_ms": 997.3,
+        "detection_ms": 462.72,
+        "embedding_ms": 364.26,
+        "matching_ms": 2.31,
+        "n_faces": 1,
+        "matched_flags": [
+          true
+        ]
+      },
+      {
+        "file": "IMG_20260930_100407.jpg",
+        "student": "s004",
+        "gallery_size": 27,
+        "status": 200,
+        "resp_ms": 1229.32,
+        "wall_ms": 1282.3,
+        "detection_ms": 482.07,
+        "embedding_ms": 495.1,
+        "matching_ms": 2.23,
+        "n_faces": 1,
+        "matched_flags": [
+          true
+        ]
+      },
+      {
+        "file": "IMG_20260930_100413.jpg",
+        "student": "s004",
+        "gallery_size": 27,
+        "status": 200,
+        "resp_ms": 1250.28,
+        "wall_ms": 1312.6,
+        "detection_ms": 477.05,
+        "embedding_ms": 495.3,
+        "matching_ms": 2.17,
+        "n_faces": 1,
+        "matched_flags": [
+          true
+        ]
+      },
+      {
+        "file": "IMG_20260930_100417.jpg",
+        "student": "s004",
+        "gallery_size": 27,
+        "status": 200,
+        "resp_ms": 1205.3,
+        "wall_ms": 1254.1,
+        "detection_ms": 469.13,
+        "embedding_ms": 475.77,
+        "matching_ms": 2.35,
+        "n_faces": 1,
+        "matched_flags": [
+          true
+        ]
+      },
+      {
+        "file": "IMG_20260930_100634.jpg",
+        "student": "s005",
+        "gallery_size": 27,
+        "status": 200,
+        "resp_ms": 1009.25,
+        "wall_ms": 1054.6,
+        "detection_ms": 382.28,
+        "embedding_ms": 458.94,
+        "matching_ms": 1.24,
+        "n_faces": 1,
+        "matched_flags": [
+          true
+        ]
+      },
+      {
+        "file": "IMG_20260930_100636.jpg",
+        "student": "s005",
+        "gallery_size": 27,
+        "status": 200,
+        "resp_ms": 1167.08,
+        "wall_ms": 1197.2,
+        "detection_ms": 513.62,
+        "embedding_ms": 394.26,
+        "matching_ms": 2.79,
+        "n_faces": 1,
+        "matched_flags": [
+          true
+        ]
+      },
+      {
+        "file": "IMG_20260930_100643.jpg",
+        "student": "s005",
+        "gallery_size": 27,
+        "status": 200,
+        "resp_ms": 1083.23,
+        "wall_ms": 1142.1,
+        "detection_ms": 473.54,
+        "embedding_ms": 478.37,
+        "matching_ms": 2.59,
+        "n_faces": 1,
+        "matched_flags": [
+          true
+        ]
+      },
+      {
+        "file": "IMG_20260930_100747.jpg",
+        "student": "s006",
+        "gallery_size": 27,
+        "status": 200,
+        "resp_ms": 1101.48,
+        "wall_ms": 1146.9,
+        "detection_ms": 451.08,
+        "embedding_ms": 439.21,
+        "matching_ms": 2.11,
+        "n_faces": 1,
+        "matched_flags": [
+          true
+        ]
+      },
+      {
+        "file": "IMG_20260930_100751.jpg",
+        "student": "s006",
+        "gallery_size": 27,
+        "status": 200,
+        "resp_ms": 807.7,
+        "wall_ms": 840.4,
+        "detection_ms": 319.54,
+        "embedding_ms": 377.73,
+        "matching_ms": 1.2,
+        "n_faces": 1,
+        "matched_flags": [
+          true
+        ]
+      },
+      {
+        "file": "IMG_20260930_100753.jpg",
+        "student": "s006",
+        "gallery_size": 27,
+        "status": 200,
+        "resp_ms": 871.24,
+        "wall_ms": 900.9,
+        "detection_ms": 406.82,
+        "embedding_ms": 316.72,
+        "matching_ms": 2.58,
+        "n_faces": 1,
+        "matched_flags": [
+          true
+        ]
+      },
+      {
+        "file": "IMG_20260930_100834.jpg",
+        "student": "s007",
+        "gallery_size": 27,
+        "status": 200,
+        "resp_ms": 1080.64,
+        "wall_ms": 1131.5,
+        "detection_ms": 460.53,
+        "embedding_ms": 443.1,
+        "matching_ms": 1.13,
+        "n_faces": 1,
+        "matched_flags": [
+          true
+        ]
+      },
+      {
+        "file": "IMG_20260930_100836.jpg",
+        "student": "s007",
+        "gallery_size": 27,
+        "status": 200,
+        "resp_ms": 940.42,
+        "wall_ms": 972.2,
+        "detection_ms": 424.34,
+        "embedding_ms": 224.24,
+        "matching_ms": 1.07,
+        "n_faces": 1,
+        "matched_flags": [
+          true
+        ]
+      },
+      {
+        "file": "IMG_20260930_100837.jpg",
+        "student": "s007",
+        "gallery_size": 27,
+        "status": 200,
+        "resp_ms": 1239.3,
+        "wall_ms": 1273.3,
+        "detection_ms": 453.76,
+        "embedding_ms": 475.84,
+        "matching_ms": 1.38,
+        "n_faces": 1,
+        "matched_flags": [
+          true
+        ]
+      },
+      {
+        "file": "IMG_20260930_101023.jpg",
+        "student": "s009",
+        "gallery_size": 27,
+        "status": 200,
+        "resp_ms": 1056.59,
+        "wall_ms": 1121.6,
+        "detection_ms": 416.63,
+        "embedding_ms": 340.91,
+        "matching_ms": 1.38,
+        "n_faces": 1,
+        "matched_flags": [
+          true
+        ]
+      },
+      {
+        "file": "IMG_20260930_101026.jpg",
+        "student": "s009",
+        "gallery_size": 27,
+        "status": 200,
+        "resp_ms": 1161.55,
+        "wall_ms": 1201.4,
+        "detection_ms": 401.22,
+        "embedding_ms": 484.57,
+        "matching_ms": 2.11,
+        "n_faces": 1,
+        "matched_flags": [
+          true
+        ]
+      },
+      {
+        "file": "IMG_20260930_101027.jpg",
+        "student": "s009",
+        "gallery_size": 27,
+        "status": 200,
+        "resp_ms": 942.95,
+        "wall_ms": 1021.3,
+        "detection_ms": 320.0,
+        "embedding_ms": 442.22,
+        "matching_ms": 2.16,
+        "n_faces": 1,
+        "matched_flags": [
+          true
+        ]
+      },
+      {
+        "file": "IMG_20260930_101054.jpg",
+        "student": "s010",
+        "gallery_size": 27,
+        "status": 200,
+        "resp_ms": 1088.25,
+        "wall_ms": 1154.2,
+        "detection_ms": 453.18,
+        "embedding_ms": 450.01,
+        "matching_ms": 2.21,
+        "n_faces": 1,
+        "matched_flags": [
+          true
+        ]
+      },
+      {
+        "file": "IMG_20260930_101055.jpg",
+        "student": "s010",
+        "gallery_size": 27,
+        "status": 200,
+        "resp_ms": 1025.56,
+        "wall_ms": 1079.9,
+        "detection_ms": 419.65,
+        "embedding_ms": 433.8,
+        "matching_ms": 1.87,
+        "n_faces": 1,
+        "matched_flags": [
+          true
+        ]
+      },
+      {
+        "file": "IMG_20260930_101057.jpg",
+        "student": "s010",
+        "gallery_size": 27,
+        "status": 200,
+        "resp_ms": 1054.99,
+        "wall_ms": 1120.4,
+        "detection_ms": 476.51,
+        "embedding_ms": 394.18,
+        "matching_ms": 2.04,
+        "n_faces": 1,
+        "matched_flags": [
+          true
+        ]
+      }
+    ],
+    "stats_resp_ms": {
+      "n": 27,
+      "mean": 1059.1,
+      "median": 1077.9,
+      "p95": 1239.3,
+      "min": 807.7,
+      "max": 1250.3
+    },
+    "stats_wall_ms": {
+      "n": 27,
+      "mean": 1105.5,
+      "median": 1121.6,
+      "p95": 1282.3,
+      "min": 840.4,
+      "max": 1312.6
+    },
+    "stats_detection_ms": {
+      "n": 27,
+      "mean": 428.3,
+      "median": 445.2,
+      "p95": 482.9,
+      "min": 319.5,
+      "max": 513.6
+    },
+    "stats_embedding_ms": {
+      "n": 27,
+      "mean": 428.0,
+      "median": 445.0,
+      "p95": 495.3,
+      "min": 224.2,
+      "max": 528.1
+    },
+    "stats_matching_ms": {
+      "n": 27,
+      "mean": 2.3,
+      "median": 2.2,
+      "p95": 3.3,
+      "min": 1.1,
+      "max": 10.6
+    }
+  },
+  "gallery_note": "gallery = semua embedding sukses (dari 30 sampel), label anonim sNNN"
+}

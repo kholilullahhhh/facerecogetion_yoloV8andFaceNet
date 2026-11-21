@@ -1,0 +1,10 @@
+item,mean_ms,median_ms,p95_ms,min_ms,max_ms,n_samples,source_field,source_file
+POST /detect (resp),619.4,622.6,745.3,379.5,791.1,27,processing_time_ms,raw-results/api_latency_results.json
+POST /embedding (resp),1066.0,1071.3,1218.0,711.4,1276.5,27,processing_time_ms,raw-results/api_latency_results.json
+POST /recognize (resp),1059.1,1077.9,1239.3,807.7,1250.3,27,processing_time_ms,raw-results/api_latency_results.json
+POST /detect (wall),655.0,657.9,792.5,419.7,814.5,27,wall clock,raw-results/api_latency_results.json
+POST /embedding (wall),1111.4,1124.2,1264.3,754.0,1324.2,27,wall clock,raw-results/api_latency_results.json
+POST /recognize (wall),1105.5,1121.6,1282.3,840.4,1312.6,27,wall clock,raw-results/api_latency_results.json
+/recognize: detection stage,428.3,445.2,482.9,319.5,513.6,27,timing.detection_ms,raw-results/api_latency_results.json
+/recognize: embedding stage,428.0,445.0,495.3,224.2,528.1,27,timing.embedding_ms,raw-results/api_latency_results.json
+/recognize: matching stage,2.3,2.2,3.3,1.1,10.6,27,timing.matching_ms,raw-results/api_latency_results.json

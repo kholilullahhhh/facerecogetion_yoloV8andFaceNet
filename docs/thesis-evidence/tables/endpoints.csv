@@ -1,0 +1,26 @@
+Product,Method,URI,Auth,Controller/Handler,Input utama,Output utama,Status audit
+Backend,POST,/api/login,throttle:10,1 (publik),AuthController::login,email+password,token+user, kode diaudit; runtime TBD (MySQL mati)
+Backend,POST,/api/logout,auth:sanctum,AuthController::logout,Bearer,—, kode
+Backend,GET,/api/me,auth:sanctum,AuthController::me,Bearer,user aktif, kode
+Backend,GET,/api/admin/students,admin,StudentController::index,pagination+search,list siswa, kode
+Backend,POST,/api/admin/students,admin,StudentController::store,data siswa (multipart bila foto),siswa baru, kode
+Backend,GET|PUT|DELETE,/api/admin/students/{student},admin,StudentController::show/update/destroy,—,detail/update/hapus, kode
+Backend,GET,/api/admin/students/{student}/embeddings,admin,FaceEmbeddingController::index,—,list embedding siswa, kode
+Backend,POST,/api/admin/students/{student}/embeddings,admin,FaceEmbeddingController::store,images[] multipart (≤6 emb/foto),jumlah embedding tersimpan (+errors), kode; gabung AI /register-face
+Backend,DELETE,/api/admin/students/{student}/embeddings/{embedding},admin,FaceEmbeddingController::destroy,—,hapus 1 embedding, kode
+Backend,CRUD,/api/admin/teachers|classes|subjects|schedules,admin,Teacher/Class/Subject/ScheduleController,—,list/detail, kode
+Backend,GET,/api/dashboard/{summary,chart,class-summary,recent},auth:sanctum,DashboardController,—,agregat dashboard, kode
+Backend,GET,/api/schedules,auth:sanctum,ScheduleController::mySchedules,Bearer,daftar jadwal saya, kode
+Backend,POST,/api/attendance/sessions,auth:sanctum,AttendanceController::storeSession,schedule_id+date+start_time,sesi (201/200 idempotent), kode
+Backend,GET|PUT,/api/attendance/sessions(/{session})(/close),auth:sanctum,getSessions/getSession/closeSession,Bearer(+status filter),sesi + relasi, kode
+Backend,POST,/api/attendance/record,auth:sanctum,AttendanceController::recordAttendance,session_id+student_id+distance+status,rekaman absensi (⚠ client-trust), kode
+Backend,POST,/api/attendance/recognize,auth:sanctum,AttendanceController::recognizeAndRecord,multipart image+session_id,faces[]+status (recorded/already/unknown), kode; latency terkait dok 05
+Backend,GET,/api/reports/attendance(/export),auth:sanctum,ReportController,filter tanggal/kelas,laporan/export, kode
+Backend,PUT,/api/teacher/profile,auth:sanctum,AuthController::updateProfile,data profil,ganti profil, kode
+AI,GET,/health,—,(tanpa auth),status+yolo+facenet+device+threshold, verifikasi runtime live
+AI,POST,/detect,—,(tanpa auth),multipart image,faces[]+landmarks+scores, benchmark 619 ms
+AI,POST,/embedding,—,(tanpa auth),multipart image,embedding[512]+dimension, benchmark 1066 ms; 400 tanpa/multi-wajah
+AI,POST,/register-face,—,(tanpa auth),multipart image(+augment),≤6 embedding[512], kode; dipakai enrollment backend
+AI,POST,/recognize,—,(tanpa auth),multipart image+embeddings_json,faces[]+distance+matched+timing, benchmark 1059 ms
+AI,PUT,/threshold,—,(tanpa auth),{threshold 0..2},set runtime (TIDAK persist), TIDAK dipanggil saat audit
+AI,POST,/calibrate,—,(tanpa auth),{embeddings_by_student},EER+set runtime threshold, TIDAK dipanggil — bug EER (dok 06)
