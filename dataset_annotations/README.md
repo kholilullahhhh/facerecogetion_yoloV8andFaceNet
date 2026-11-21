@@ -4,6 +4,9 @@ Paket ini berisi **anotasi** hasil ekspor bounding box wajah dari 247 foto siswa
 **Gambar/foto asli tidak disertakan** untuk melindungi privasi siswa. Yang dibagikan
 hanya koordinat, label, dan laporan turunannya.
 
+> Dataset lengkap (foto asli) disimpan privat — lihat
+> [PRIVATE_DATASETS.md](PRIVATE_DATASETS.md).
+
 ## Ringkasan
 
 | Item | Nilai |
