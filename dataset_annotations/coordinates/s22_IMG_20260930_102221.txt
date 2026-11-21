@@ -1,0 +1,8 @@
+image      : s22_IMG_20260930_102221.jpg
+split      : train
+source     : foto 22
+size       : 3072x4096
+faces      : 1
+score_mean : 0.8593
+
+face 1: xmin=1686 ymin=485 xmax=2374 ymax=1796 | w=688 h=1311 | cx_norm=0.660807 cy_norm=0.278442 w_norm=0.223958 h_norm=0.320068

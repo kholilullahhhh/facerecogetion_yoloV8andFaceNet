@@ -1,0 +1,8 @@
+image      : s23_IMG_20260930_102308.jpg
+split      : train
+source     : foto 23
+size       : 3072x4096
+faces      : 1
+score_mean : 0.9402
+
+face 1: xmin=864 ymin=643 xmax=2040 ymax=2160 | w=1176 h=1517 | cx_norm=0.472656 cy_norm=0.342163 w_norm=0.382812 h_norm=0.370361

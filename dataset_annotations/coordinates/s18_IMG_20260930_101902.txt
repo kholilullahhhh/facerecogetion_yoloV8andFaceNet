@@ -1,0 +1,8 @@
+image      : s18_IMG_20260930_101902.jpg
+split      : val
+source     : foto 18
+size       : 3072x4096
+faces      : 1
+score_mean : 0.7798
+
+face 1: xmin=945 ymin=1554 xmax=2281 ymax=2687 | w=1336 h=1133 | cx_norm=0.525065 cy_norm=0.517700 w_norm=0.434896 h_norm=0.276611

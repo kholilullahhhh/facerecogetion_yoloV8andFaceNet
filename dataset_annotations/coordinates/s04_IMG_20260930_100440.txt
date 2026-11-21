@@ -1,0 +1,8 @@
+image      : s04_IMG_20260930_100440.jpg
+split      : train
+source     : foto 4
+size       : 3072x4096
+faces      : 1
+score_mean : 0.9175
+
+face 1: xmin=1417 ymin=796 xmax=2269 ymax=2107 | w=852 h=1311 | cx_norm=0.599935 cy_norm=0.354370 w_norm=0.277344 h_norm=0.320068

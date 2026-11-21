@@ -1,0 +1,8 @@
+image      : s03_IMG_20260930_100255.jpg
+split      : train
+source     : foto 3
+size       : 3072x4096
+faces      : 1
+score_mean : 0.9348
+
+face 1: xmin=916 ymin=1352 xmax=2047 ymax=2884 | w=1131 h=1532 | cx_norm=0.482259 cy_norm=0.517090 w_norm=0.368164 h_norm=0.374023

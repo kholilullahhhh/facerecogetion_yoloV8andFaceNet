@@ -1,0 +1,8 @@
+image      : s16_IMG_20260930_101735.jpg
+split      : train
+source     : foto 16
+size       : 3072x4096
+faces      : 1
+score_mean : 0.925
+
+face 1: xmin=1600 ymin=621 xmax=2396 ymax=1897 | w=796 h=1276 | cx_norm=0.650391 cy_norm=0.307373 w_norm=0.259115 h_norm=0.311523

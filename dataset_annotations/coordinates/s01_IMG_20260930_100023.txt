@@ -1,0 +1,8 @@
+image      : s01_IMG_20260930_100023.jpg
+split      : val
+source     : foto 1
+size       : 3072x4096
+faces      : 1
+score_mean : 0.8872
+
+face 1: xmin=832 ymin=1533 xmax=1444 ymax=2678 | w=612 h=1145 | cx_norm=0.370443 cy_norm=0.514038 w_norm=0.199219 h_norm=0.279541

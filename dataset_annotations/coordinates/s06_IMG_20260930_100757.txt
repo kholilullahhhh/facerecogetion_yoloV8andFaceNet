@@ -1,0 +1,8 @@
+image      : s06_IMG_20260930_100757.jpg
+split      : train
+source     : foto 6
+size       : 3072x4096
+faces      : 0
+score_mean : 
+
+(tidak ada wajah terdeteksi — background)

@@ -1,0 +1,8 @@
+image      : s12_IMG_20260930_101255.jpg
+split      : train
+source     : foto 12
+size       : 3072x4096
+faces      : 1
+score_mean : 0.9232
+
+face 1: xmin=671 ymin=540 xmax=1678 ymax=2164 | w=1007 h=1624 | cx_norm=0.382324 cy_norm=0.330078 w_norm=0.327799 h_norm=0.396484

@@ -1,0 +1,21 @@
+<annotation>
+  <folder>images/val</folder>
+  <filename>s13_IMG_20260930_101322.jpg</filename>
+  <size>
+    <width>3072</width>
+    <height>4096</height>
+    <depth>3</depth>
+  </size>
+  <object>
+    <name>face</name>
+    <pose>Unspecified</pose>
+    <truncated>0</truncated>
+    <difficult>0</difficult>
+    <bndbox>
+      <xmin>1067</xmin>
+      <ymin>633</ymin>
+      <xmax>2162</xmax>
+      <ymax>1802</ymax>
+    </bndbox>
+  </object>
+</annotation>

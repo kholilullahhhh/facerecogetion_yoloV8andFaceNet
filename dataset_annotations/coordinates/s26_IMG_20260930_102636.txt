@@ -1,0 +1,8 @@
+image      : s26_IMG_20260930_102636.jpg
+split      : train
+source     : foto 26
+size       : 3072x4096
+faces      : 1
+score_mean : 0.9266
+
+face 1: xmin=1097 ymin=692 xmax=2031 ymax=1898 | w=934 h=1206 | cx_norm=0.509115 cy_norm=0.316162 w_norm=0.304036 h_norm=0.294434

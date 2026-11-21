@@ -1,0 +1,10 @@
+# Contoh konfigurasi Ultralytics. Gambar TIDAK disertakan di repo ini.
+# Buat ekspor lokal lebih dulu:
+#   cd ai-service
+#   python scripts\export_bbox_dataset.py --letterbox 0 --xml
+# Lalu ganti path di bawah dengan folder hasil ekspor (yang berisi images/).
+path: /path/to/datasets/bbox_export_<timestamp>
+train: images/train
+val: images/val
+names:
+  0: face

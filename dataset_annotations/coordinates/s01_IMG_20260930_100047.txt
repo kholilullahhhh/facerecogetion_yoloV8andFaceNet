@@ -1,0 +1,8 @@
+image      : s01_IMG_20260930_100047.jpg
+split      : val
+source     : foto 1
+size       : 3072x4096
+faces      : 1
+score_mean : 0.9202
+
+face 1: xmin=1303 ymin=1303 xmax=2058 ymax=2454 | w=755 h=1151 | cx_norm=0.547038 cy_norm=0.458618 w_norm=0.245768 h_norm=0.281006

@@ -1,0 +1,8 @@
+image      : s15_IMG_20260930_101550.jpg
+split      : train
+source     : foto 15
+size       : 3072x4096
+faces      : 1
+score_mean : 0.9395
+
+face 1: xmin=1117 ymin=615 xmax=2058 ymax=2000 | w=941 h=1385 | cx_norm=0.516764 cy_norm=0.319214 w_norm=0.306315 h_norm=0.338135

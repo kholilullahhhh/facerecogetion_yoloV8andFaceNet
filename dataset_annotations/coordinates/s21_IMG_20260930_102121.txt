@@ -1,0 +1,8 @@
+image      : s21_IMG_20260930_102121.jpg
+split      : train
+source     : foto 21
+size       : 3072x4096
+faces      : 0
+score_mean : 
+
+(tidak ada wajah terdeteksi — background)

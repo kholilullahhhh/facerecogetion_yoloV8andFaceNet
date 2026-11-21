@@ -1,0 +1,21 @@
+<annotation>
+  <folder>images/train</folder>
+  <filename>s19_IMG_20260930_101949.jpg</filename>
+  <size>
+    <width>3072</width>
+    <height>4096</height>
+    <depth>3</depth>
+  </size>
+  <object>
+    <name>face</name>
+    <pose>Unspecified</pose>
+    <truncated>0</truncated>
+    <difficult>0</difficult>
+    <bndbox>
+      <xmin>775</xmin>
+      <ymin>838</ymin>
+      <xmax>1750</xmax>
+      <ymax>2379</ymax>
+    </bndbox>
+  </object>
+</annotation>

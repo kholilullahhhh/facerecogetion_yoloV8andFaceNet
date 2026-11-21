@@ -1,0 +1,8 @@
+image      : s19_IMG_20260930_101942.jpg
+split      : train
+source     : foto 19
+size       : 3072x4096
+faces      : 1
+score_mean : 0.9124
+
+face 1: xmin=1449 ymin=717 xmax=2336 ymax=2309 | w=887 h=1592 | cx_norm=0.616048 cy_norm=0.369385 w_norm=0.288737 h_norm=0.388672

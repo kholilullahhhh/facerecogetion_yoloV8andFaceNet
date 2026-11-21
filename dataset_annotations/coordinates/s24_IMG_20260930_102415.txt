@@ -1,0 +1,8 @@
+image      : s24_IMG_20260930_102415.jpg
+split      : train
+source     : foto 24
+size       : 3072x4096
+faces      : 1
+score_mean : 0.7503
+
+face 1: xmin=1035 ymin=2108 xmax=2067 ymax=2895 | w=1032 h=787 | cx_norm=0.504883 cy_norm=0.610718 w_norm=0.335938 h_norm=0.192139

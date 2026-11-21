@@ -1,0 +1,8 @@
+image      : s19_IMG_20260930_101936.jpg
+split      : train
+source     : foto 19
+size       : 3072x4096
+faces      : 0
+score_mean : 
+
+(tidak ada wajah terdeteksi — background)

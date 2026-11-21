@@ -1,0 +1,8 @@
+image      : s11_IMG_20260930_101149.jpg
+split      : train
+source     : foto 11
+size       : 3072x4096
+faces      : 1
+score_mean : 0.9388
+
+face 1: xmin=888 ymin=1077 xmax=2033 ymax=2683 | w=1145 h=1606 | cx_norm=0.475423 cy_norm=0.458984 w_norm=0.372721 h_norm=0.392090

@@ -1,0 +1,8 @@
+image      : s25_IMG_20260930_102541.jpg
+split      : val
+source     : foto 25
+size       : 3072x4096
+faces      : 1
+score_mean : 0.8921
+
+face 1: xmin=1082 ymin=978 xmax=1645 ymax=1836 | w=563 h=858 | cx_norm=0.443848 cy_norm=0.343506 w_norm=0.183268 h_norm=0.209473

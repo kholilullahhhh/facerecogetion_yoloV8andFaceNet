@@ -1,0 +1,8 @@
+image      : s14_IMG_20260930_101430.jpg
+split      : train
+source     : foto 14
+size       : 3072x4096
+faces      : 1
+score_mean : 0.9461
+
+face 1: xmin=1205 ymin=1069 xmax=2334 ymax=2624 | w=1129 h=1555 | cx_norm=0.576009 cy_norm=0.450806 w_norm=0.367513 h_norm=0.379639

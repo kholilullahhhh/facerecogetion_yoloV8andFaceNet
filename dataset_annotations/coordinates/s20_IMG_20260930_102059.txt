@@ -1,0 +1,8 @@
+image      : s20_IMG_20260930_102059.jpg
+split      : train
+source     : foto 20
+size       : 3072x4096
+faces      : 1
+score_mean : 0.9069
+
+face 1: xmin=1309 ymin=928 xmax=2157 ymax=2349 | w=848 h=1421 | cx_norm=0.564128 cy_norm=0.400024 w_norm=0.276042 h_norm=0.346924

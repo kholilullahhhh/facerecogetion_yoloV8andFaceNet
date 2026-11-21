@@ -1,0 +1,8 @@
+image      : s02_IMG_20260930_100149.jpg
+split      : train
+source     : foto 2
+size       : 3072x4096
+faces      : 1
+score_mean : 0.9438
+
+face 1: xmin=933 ymin=1532 xmax=2037 ymax=2722 | w=1104 h=1190 | cx_norm=0.483398 cy_norm=0.519287 w_norm=0.359375 h_norm=0.290527

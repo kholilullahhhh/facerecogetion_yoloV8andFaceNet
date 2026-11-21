@@ -1,0 +1,8 @@
+image      : s13_IMG_20260930_101322.jpg
+split      : val
+source     : foto 13
+size       : 3072x4096
+faces      : 1
+score_mean : 0.9011
+
+face 1: xmin=1067 ymin=633 xmax=2162 ymax=1802 | w=1095 h=1169 | cx_norm=0.525553 cy_norm=0.297241 w_norm=0.356445 h_norm=0.285400

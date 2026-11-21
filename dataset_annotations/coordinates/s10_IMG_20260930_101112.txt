@@ -1,0 +1,8 @@
+image      : s10_IMG_20260930_101112.jpg
+split      : val
+source     : foto 10
+size       : 3072x4096
+faces      : 1
+score_mean : 0.9167
+
+face 1: xmin=1342 ymin=844 xmax=2351 ymax=2420 | w=1009 h=1576 | cx_norm=0.601074 cy_norm=0.398438 w_norm=0.328451 h_norm=0.384766

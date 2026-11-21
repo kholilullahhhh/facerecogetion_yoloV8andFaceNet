@@ -1,0 +1,26 @@
+source_folder,split,n_images,n_faces,background_images,mean_faces_per_image
+foto 1,val,11,11,0,1.0
+foto 10,val,12,12,0,1.0
+foto 11,train,11,11,0,1.0
+foto 12,train,9,9,0,1.0
+foto 13,val,9,9,0,1.0
+foto 14,train,10,9,1,0.9
+foto 15,train,9,9,0,1.0
+foto 16,train,10,10,0,1.0
+foto 17,train,10,10,0,1.0
+foto 18,val,9,9,0,1.0
+foto 19,train,9,8,1,0.89
+foto 2,train,10,10,0,1.0
+foto 20,train,9,9,0,1.0
+foto 21,train,9,8,1,0.89
+foto 22,train,10,10,0,1.0
+foto 23,train,10,10,0,1.0
+foto 24,train,10,10,0,1.0
+foto 25,val,10,10,0,1.0
+foto 26,train,9,9,0,1.0
+foto 3,train,13,13,0,1.0
+foto 4,train,9,9,0,1.0
+foto 5,train,9,9,0,1.0
+foto 6,train,11,10,1,0.91
+foto 7,train,10,10,0,1.0
+foto 9,train,9,9,0,1.0

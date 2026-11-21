@@ -1,0 +1,8 @@
+image      : s05_IMG_20260930_100636.jpg
+split      : train
+source     : foto 5
+size       : 3072x4096
+faces      : 1
+score_mean : 0.9475
+
+face 1: xmin=829 ymin=1160 xmax=1837 ymax=2493 | w=1008 h=1333 | cx_norm=0.433919 cy_norm=0.445923 w_norm=0.328125 h_norm=0.325439

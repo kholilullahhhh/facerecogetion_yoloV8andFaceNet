@@ -1,0 +1,8 @@
+image      : s07_IMG_20260930_100856.jpg
+split      : train
+source     : foto 7
+size       : 3072x4096
+faces      : 1
+score_mean : 0.9325
+
+face 1: xmin=960 ymin=1006 xmax=1972 ymax=2417 | w=1012 h=1411 | cx_norm=0.477214 cy_norm=0.417847 w_norm=0.329427 h_norm=0.344482

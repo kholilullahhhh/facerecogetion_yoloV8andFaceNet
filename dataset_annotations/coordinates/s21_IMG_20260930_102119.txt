@@ -1,0 +1,8 @@
+image      : s21_IMG_20260930_102119.jpg
+split      : train
+source     : foto 21
+size       : 3072x4096
+faces      : 1
+score_mean : 0.9241
+
+face 1: xmin=1148 ymin=1399 xmax=2171 ymax=2582 | w=1023 h=1183 | cx_norm=0.540202 cy_norm=0.485962 w_norm=0.333008 h_norm=0.288818

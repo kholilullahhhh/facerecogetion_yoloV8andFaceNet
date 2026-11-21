@@ -1,0 +1,13 @@
+{
+  "created": "2026-11-21 14:43:36",
+  "source_export": "D:\\unhas\\facerecogetion_yoloV8andFaceNet\\datasets\\bbox_export_20261121_140558",
+  "images": 247,
+  "train": 196,
+  "val": 51,
+  "faces": 243,
+  "background_images": 4,
+  "output_max_width": "original",
+  "jpeg_quality": 92,
+  "written": 247,
+  "skipped": 0
+}

@@ -1,0 +1,8 @@
+image      : s17_IMG_20260930_101815.jpg
+split      : train
+source     : foto 17
+size       : 3072x4096
+faces      : 1
+score_mean : 0.9295
+
+face 1: xmin=1098 ymin=868 xmax=1934 ymax=1905 | w=836 h=1037 | cx_norm=0.493490 cy_norm=0.338501 w_norm=0.272135 h_norm=0.253174

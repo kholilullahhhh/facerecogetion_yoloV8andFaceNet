@@ -1,0 +1,8 @@
+image      : s07_IMG_20260930_100837.jpg
+split      : train
+source     : foto 7
+size       : 3072x4096
+faces      : 1
+score_mean : 0.9373
+
+face 1: xmin=933 ymin=768 xmax=1937 ymax=1995 | w=1004 h=1227 | cx_norm=0.467122 cy_norm=0.337280 w_norm=0.326823 h_norm=0.299561

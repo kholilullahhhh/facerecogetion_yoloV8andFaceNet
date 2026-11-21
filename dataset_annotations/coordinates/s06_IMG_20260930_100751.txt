@@ -1,0 +1,8 @@
+image      : s06_IMG_20260930_100751.jpg
+split      : train
+source     : foto 6
+size       : 3072x4096
+faces      : 1
+score_mean : 0.9317
+
+face 1: xmin=1130 ymin=690 xmax=2018 ymax=1704 | w=888 h=1014 | cx_norm=0.512370 cy_norm=0.292236 w_norm=0.289062 h_norm=0.247559

@@ -1,0 +1,8 @@
+image      : s09_IMG_20260930_101027.jpg
+split      : train
+source     : foto 9
+size       : 3072x4096
+faces      : 1
+score_mean : 0.9366
+
+face 1: xmin=1006 ymin=697 xmax=2106 ymax=2100 | w=1100 h=1403 | cx_norm=0.506510 cy_norm=0.341431 w_norm=0.358073 h_norm=0.342529
