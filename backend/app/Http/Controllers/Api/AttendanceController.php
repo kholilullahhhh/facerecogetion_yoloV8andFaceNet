@@ -222,6 +222,70 @@ class AttendanceController extends Controller
         ], 201);
     }
 
+    /**
+     * Lightweight bounding-box endpoint for the live camera overlay.
+     *
+     * It only proxies the AI service's YuNet detector: no student/embedding
+     * query and no attendance write, so it can run several times per second
+     * while recognition keeps running on its own slower cadence.
+     */
+    public function detectFaces(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'attendance_session_id' => 'required|exists:attendance_sessions,id',
+            'image' => 'required|image|mimes:jpeg,jpg,png|max:8192',
+        ]);
+
+        $session = AttendanceSession::find($validated['attendance_session_id']);
+        if (! $this->authorizeSession($request, $session)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Anda tidak memiliki akses ke sesi ini.',
+            ], 403);
+        }
+
+        if ($session->status !== 'active') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Sesi absensi sudah ditutup.',
+            ], 400);
+        }
+
+        $aiServiceUrl = config('services.ai.url', 'http://localhost:8000');
+        $image = $request->file('image');
+
+        try {
+            $response = Http::timeout(10)
+                ->attach('image', file_get_contents($image->getRealPath()), $image->getClientOriginalName())
+                ->post("{$aiServiceUrl}/detect");
+
+            if (! $response->successful()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'AI Service tidak merespons.',
+                ], 503);
+            }
+
+            $aiResult = $response->json();
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'AI Service tidak tersedia: '.$e->getMessage(),
+            ], 503);
+        }
+
+        $faces = array_map(fn (array $face): array => [
+            'bbox' => $face['bbox'],
+            'detection_confidence' => $face['confidence'] ?? 0,
+        ], $aiResult['faces'] ?? []);
+
+        return response()->json([
+            'success' => true,
+            'processing_time_ms' => $aiResult['processing_time_ms'] ?? 0,
+            'faces' => $faces,
+        ]);
+    }
+
     public function recognizeAndRecord(Request $request): JsonResponse
     {
         $request->validate([

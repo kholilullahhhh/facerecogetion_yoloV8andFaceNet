@@ -40,6 +40,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/sessions/{session}', [AttendanceController::class, 'getSession']);
         Route::put('/sessions/{session}/close', [AttendanceController::class, 'closeSession']);
         Route::post('/record', [AttendanceController::class, 'recordAttendance']);
+        Route::post('/detect', [AttendanceController::class, 'detectFaces']);
         Route::post('/recognize', [AttendanceController::class, 'recognizeAndRecord']);
     });
 

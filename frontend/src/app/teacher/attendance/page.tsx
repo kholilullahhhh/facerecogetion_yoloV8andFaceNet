@@ -1,13 +1,30 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
+import axios from "axios";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import api from "@/lib/api";
-import type { RecognitionResult, Schedule } from "@/types";
+import type { BBox, RecognitionResult, Schedule } from "@/types";
 import { Camera, CameraOff, AlertCircle, Plus, X } from "lucide-react";
+
+// Detect often (frequent, cheap frames) and recognize less often (expensive,
+// writes attendance). Boxes are interpolated between detections so the overlay
+// moves every animation frame instead of jumping from result to result.
+const CAPTURE_MAX_SIDE = 640;
+const DETECT_INTERVAL_MS = 180;
+const RECOGNIZE_INTERVAL_MS = 2000;
+const DETECT_JPEG_QUALITY = 0.6;
+const RECOGNIZE_JPEG_QUALITY = 0.8;
+const TRACK_TTL_MS = 1500;
+const TRACK_FADE_MS = 220;
+const SMOOTHING_TAU_MS = 90;
+const IDENTITY_TTL_MS = 6000;
+const MATCH_IOU = 0.15;
+const MATCH_CENTER_DISTANCE = 0.2;
+const TRACK_CENTER_DISTANCE = 0.22;
 
 interface Session {
   id: number;
@@ -15,6 +32,72 @@ interface Session {
   start_time: string;
   status: string;
   schedule?: { id: number; subject?: { name: string }; class?: { name: string } };
+}
+
+interface NormalizedBox {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+}
+
+interface CapturedFrame {
+  blob: Blob;
+  width: number;
+  height: number;
+}
+
+interface TrackedFace {
+  box: NormalizedBox;
+  target: NormalizedBox;
+  opacity: number;
+  lastSeen: number;
+  matched: boolean | null;
+  studentName: string | null;
+  status: RecognitionResult["status"] | null;
+  distance: number | null;
+}
+
+interface IdentityAnchor {
+  box: NormalizedBox;
+  matched: boolean;
+  studentName: string | null;
+  status: RecognitionResult["status"];
+  distance: number | null;
+  capturedAt: number;
+}
+
+function normalizeBox(bbox: BBox, width: number, height: number): NormalizedBox {
+  const w = Math.max(1, width);
+  const h = Math.max(1, height);
+  return {
+    x1: bbox.x1 / w,
+    y1: bbox.y1 / h,
+    x2: bbox.x2 / w,
+    y2: bbox.y2 / h,
+  };
+}
+
+function boxIoU(a: NormalizedBox, b: NormalizedBox): number {
+  const intersectionWidth = Math.max(0, Math.min(a.x2, b.x2) - Math.max(a.x1, b.x1));
+  const intersectionHeight = Math.max(0, Math.min(a.y2, b.y2) - Math.max(a.y1, b.y1));
+  const intersection = intersectionWidth * intersectionHeight;
+  if (intersection <= 0) return 0;
+
+  const areaA = Math.max(0, a.x2 - a.x1) * Math.max(0, a.y2 - a.y1);
+  const areaB = Math.max(0, b.x2 - b.x1) * Math.max(0, b.y2 - b.y1);
+  const union = areaA + areaB - intersection;
+  return union > 0 ? intersection / union : 0;
+}
+
+function boxCenterDistance(a: NormalizedBox, b: NormalizedBox): number {
+  const dx = (a.x1 + a.x2 - b.x1 - b.x2) / 2;
+  const dy = (a.y1 + a.y2 - b.y1 - b.y2) / 2;
+  return Math.hypot(dx, dy);
+}
+
+function isCanceledError(error: unknown): boolean {
+  return axios.isCancel(error) || (error instanceof DOMException && error.name === "AbortError");
 }
 
 export default function TeacherAttendancePage() {
@@ -29,12 +112,21 @@ export default function TeacherAttendancePage() {
   const [creating, setCreating] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [recognizeError, setRecognizeError] = useState<string | null>(null);
+  const [detectStats, setDetectStats] = useState({ fps: 0, aiMs: 0 });
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const captureCanvasRef = useRef<HTMLCanvasElement>(null);
+  const detectCanvasRef = useRef<HTMLCanvasElement>(null);
+  const recognizeCanvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
-  const recognizingRef = useRef(false);
+  const detectBusyRef = useRef(false);
+  const recognizeBusyRef = useRef(false);
+  const detectAbortRef = useRef<AbortController | null>(null);
+  const recognizeAbortRef = useRef<AbortController | null>(null);
+  const tracksRef = useRef<TrackedFace[]>([]);
+  const identitiesRef = useRef<IdentityAnchor[]>([]);
+  const captureSizeRef = useRef({ width: 0, height: 0 });
+  const cameraActiveRef = useRef(false);
+  const detectWindowRef = useRef({ responses: 0, startedAt: 0, aiMs: 0 });
 
   const fetchSessions = () => {
     api.get("/attendance/sessions", { params: { status: "active", per_page: 50 } })
@@ -77,109 +169,160 @@ export default function TeacherAttendancePage() {
     }
   };
 
-  const startCamera = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } },
-      });
-      streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-      }
-      setIsCameraActive(true);
-    } catch (err) {
-      const msg = err instanceof DOMException && err.name === "NotAllowedError"
-        ? "Izin kamera ditolak. Berikan izin kamera di browser."
-        : "Kamera tidak dapat diakses. Pastikan kamera tersedia.";
-      alert(msg);
-    }
-  };
-
-  const stopCamera = () => {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((track) => track.stop());
-      streamRef.current = null;
-    }
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
-    }
-    if (videoRef.current) {
-      videoRef.current.srcObject = null;
-    }
-    setResults([]);
-    setIsCameraActive(false);
-  };
-
-  const captureAndRecognize = useCallback(async () => {
-    if (!videoRef.current || !canvasRef.current || !selectedSessionId) return;
-    if (recognizingRef.current) return;
-
+  const captureFrame = useCallback(async (captureCanvas: HTMLCanvasElement | null, quality: number): Promise<CapturedFrame | null> => {
     const video = videoRef.current;
-    if (video.readyState < 2) return;
+    if (!video || !captureCanvas || video.readyState < 2) return null;
+    if (!video.videoWidth || !video.videoHeight) return null;
 
-    // Capture on an offscreen canvas: the visible overlay canvas must never
-    // hold a video snapshot, otherwise the live preview freezes for the whole
-    // duration of the recognition request (the reported "lagging frames").
-    const captureCanvas = captureCanvasRef.current;
-    if (!captureCanvas) return;
-    captureCanvas.width = video.videoWidth;
-    captureCanvas.height = video.videoHeight;
-    const ctx = captureCanvas.getContext("2d");
-    if (!ctx) return;
-
-    ctx.drawImage(video, 0, 0);
-    captureCanvas.toBlob(async (blob) => {
-      if (!blob) return;
-      recognizingRef.current = true;
-
-      const formData = new FormData();
-      formData.append("image", blob, "frame.jpg");
-      formData.append("attendance_session_id", String(selectedSessionId));
-
-      try {
-        const res = await api.post("/attendance/recognize", formData, {
-          headers: { "Content-Type": "multipart/form-data" },
-        });
-
-        const data = res.data;
-        setResults(data.faces || []);
-        setRecognizeError(null);
-
-        const newStats = {
-          detected: data.faces?.length || 0,
-          recorded: data.faces?.filter((f: RecognitionResult) => f.status === "recorded").length || 0,
-          alreadyRecorded: data.faces?.filter((f: RecognitionResult) => f.status === "already_recorded").length || 0,
-          unknown: data.faces?.filter((f: RecognitionResult) => f.status === "unknown").length || 0,
-        };
-        setStats(newStats);
-      } catch {
-        setRecognizeError("Gagal memproses frame. Periksa koneksi ke server / layanan AI.");
-      } finally {
-        recognizingRef.current = false;
-      }
-    }, "image/jpeg", 0.8);
-  }, [selectedSessionId]);
-
-  useEffect(() => {
-    if (isCameraActive && selectedSessionId) {
-      intervalRef.current = setInterval(captureAndRecognize, 2000);
+    // Capture at a bounded resolution. The overlay maps detections with these
+    // exact dimensions, so boxes stay aligned even when the camera negotiates
+    // a larger frame than the preview.
+    const scale = Math.min(1, CAPTURE_MAX_SIDE / Math.max(video.videoWidth, video.videoHeight));
+    const width = Math.max(1, Math.round(video.videoWidth * scale));
+    const height = Math.max(1, Math.round(video.videoHeight * scale));
+    if (captureCanvas.width !== width || captureCanvas.height !== height) {
+      captureCanvas.width = width;
+      captureCanvas.height = height;
     }
-    return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
-    };
-  }, [isCameraActive, captureAndRecognize, selectedSessionId]);
 
-  useEffect(() => {
-    return () => { stopCamera(); };
+    const ctx = captureCanvas.getContext("2d");
+    if (!ctx) return null;
+    ctx.drawImage(video, 0, 0, width, height);
+
+    const blob = await new Promise<Blob | null>((resolve) => {
+      captureCanvas.toBlob(resolve, "image/jpeg", quality);
+    });
+    if (!blob) return null;
+
+    captureSizeRef.current = { width, height };
+    return { blob, width, height };
   }, []);
 
-  const drawBoundingBoxes = useCallback(() => {
-    if (!canvasRef.current) return;
+  const applyDetections = useCallback((faces: Array<{ bbox: BBox }>, width: number, height: number) => {
+    const now = performance.now();
+    const detections = faces.map((face) => normalizeBox(face.bbox, width, height));
+    const tracks = tracksRef.current;
+    const used = new Array<boolean>(tracks.length).fill(false);
+    const nextTracks: TrackedFace[] = [];
+
+    for (const box of detections) {
+      let bestIndex = -1;
+      let bestOverlap = MATCH_IOU;
+
+      for (let index = 0; index < tracks.length; index += 1) {
+        if (used[index]) continue;
+        const overlap = boxIoU(box, tracks[index].target);
+        if (overlap > bestOverlap) {
+          bestOverlap = overlap;
+          bestIndex = index;
+        }
+      }
+
+      // A fast-moving face can lose IoU overlap between two frames; keep the
+      // same track when the new box is still close to the previous center.
+      if (bestIndex < 0) {
+        let bestDistance = TRACK_CENTER_DISTANCE;
+        for (let index = 0; index < tracks.length; index += 1) {
+          if (used[index]) continue;
+          const distance = boxCenterDistance(box, tracks[index].target);
+          if (distance < bestDistance) {
+            bestDistance = distance;
+            bestIndex = index;
+          }
+        }
+      }
+
+      if (bestIndex >= 0) {
+        used[bestIndex] = true;
+        nextTracks.push({
+          ...tracks[bestIndex],
+          target: box,
+          lastSeen: now,
+          opacity: 1,
+        });
+      } else {
+        nextTracks.push({
+          box: { ...box },
+          target: box,
+          opacity: 1,
+          lastSeen: now,
+          matched: null,
+          studentName: null,
+          status: null,
+          distance: null,
+        });
+      }
+    }
+
+    // Keep faces that were not detected in this frame: they fade out in
+    // stepTracks if they do not come back.
+    for (let index = 0; index < tracks.length; index += 1) {
+      if (!used[index]) nextTracks.push({ ...tracks[index] });
+    }
+
+    // Attach the identity from the latest recognition pass by overlap first,
+    // then by center proximity (the face may move between recognition passes).
+    const anchors = identitiesRef.current.filter(
+      (anchor) => now - anchor.capturedAt <= IDENTITY_TTL_MS
+    );
+
+    tracksRef.current = nextTracks.map((track) => {
+      let overlapMatch: IdentityAnchor | null = null;
+      let bestOverlap = MATCH_IOU;
+      let proximityMatch: IdentityAnchor | null = null;
+      let bestDistance = MATCH_CENTER_DISTANCE;
+
+      for (const anchor of anchors) {
+        const overlap = boxIoU(anchor.box, track.target);
+        if (overlap > bestOverlap) {
+          bestOverlap = overlap;
+          overlapMatch = anchor;
+        }
+
+        const distance = boxCenterDistance(anchor.box, track.target);
+        if (distance < bestDistance) {
+          bestDistance = distance;
+          proximityMatch = anchor;
+        }
+      }
+
+      const anchor = overlapMatch ?? proximityMatch;
+      return {
+        ...track,
+        matched: anchor?.matched ?? null,
+        studentName: anchor?.studentName ?? null,
+        status: anchor?.status ?? null,
+        distance: anchor?.distance ?? null,
+      };
+    });
+  }, []);
+
+  const stepTracks = useCallback((deltaMs: number) => {
+    const now = performance.now();
+    const damping = 1 - Math.exp(-deltaMs / SMOOTHING_TAU_MS);
+
+    tracksRef.current = tracksRef.current
+      .map((track) => {
+        const box = {
+          x1: track.box.x1 + (track.target.x1 - track.box.x1) * damping,
+          y1: track.box.y1 + (track.target.y1 - track.box.y1) * damping,
+          x2: track.box.x2 + (track.target.x2 - track.box.x2) * damping,
+          y2: track.box.y2 + (track.target.y2 - track.box.y2) * damping,
+        };
+        const fading = now - track.lastSeen > TRACK_TTL_MS;
+
+        return {
+          ...track,
+          box,
+          opacity: fading ? Math.max(0, track.opacity - deltaMs / TRACK_FADE_MS) : track.opacity,
+        };
+      })
+      .filter((track) => track.opacity > 0);
+  }, []);
+
+  const drawOverlay = useCallback(() => {
     const canvas = canvasRef.current;
+    if (!canvas) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
@@ -187,51 +330,284 @@ export default function TeacherAttendancePage() {
     // so 1 bitmap px maps to 1 screen px regardless of the camera resolution.
     const rect = canvas.getBoundingClientRect();
     const dpr = window.devicePixelRatio || 1;
-    const w = Math.max(1, Math.round(rect.width * dpr));
-    const h = Math.max(1, Math.round(rect.height * dpr));
-    if (canvas.width !== w || canvas.height !== h) {
-      canvas.width = w;
-      canvas.height = h;
+    const width = Math.max(1, Math.round(rect.width * dpr));
+    const height = Math.max(1, Math.round(rect.height * dpr));
+    if (canvas.width !== width || canvas.height !== height) {
+      canvas.width = width;
+      canvas.height = height;
     }
-    ctx.clearRect(0, 0, w, h);
+    ctx.clearRect(0, 0, width, height);
 
-    const video = videoRef.current;
-    if (!video || !video.videoWidth || results.length === 0) return;
+    const tracks = tracksRef.current;
+    const source = captureSizeRef.current;
+    if (!source.width || !source.height || tracks.length === 0) return;
 
     // Replicate the <video> object-fit: cover mapping (scale to cover the box,
     // crop centered) so bbox coords land exactly on the face in the preview.
-    const scale = Math.max(w / video.videoWidth, h / video.videoHeight);
-    const ox = (w - video.videoWidth * scale) / 2;
-    const oy = (h - video.videoHeight * scale) / 2;
+    const scale = Math.max(width / source.width, height / source.height);
+    const offsetX = (width - source.width * scale) / 2;
+    const offsetY = (height - source.height * scale) / 2;
 
-    results.forEach((face) => {
-      const { bbox } = face;
-      const x1 = bbox.x1 * scale + ox;
-      const y1 = bbox.y1 * scale + oy;
-      const x2 = bbox.x2 * scale + ox;
-      const y2 = bbox.y2 * scale + oy;
-      const k = scale * dpr;
+    for (const track of tracks) {
+      if (track.opacity <= 0) continue;
 
-      ctx.strokeStyle = face.matched ? "#22c55e" : "#ef4444";
-      ctx.lineWidth = Math.max(1.5, 2 * k);
+      const x1 = offsetX + track.box.x1 * source.width * scale;
+      const y1 = offsetY + track.box.y1 * source.height * scale;
+      const x2 = offsetX + track.box.x2 * source.width * scale;
+      const y2 = offsetY + track.box.y2 * source.height * scale;
+      const color = track.matched === null ? "#38bdf8" : track.matched ? "#22c55e" : "#ef4444";
+
+      ctx.globalAlpha = Math.min(1, track.opacity);
+      ctx.strokeStyle = color;
+      ctx.lineWidth = Math.max(1.5, 2 * dpr);
       ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
 
-      ctx.fillStyle = face.matched ? "#22c55e" : "#ef4444";
-      ctx.fillRect(x1, y1 - 24 * k, x2 - x1, 24 * k);
+      const label = track.matched === null ? "" : track.studentName || "Tidak Dikenali";
+      if (label) {
+        const fontSize = Math.round(Math.max(11, Math.min(16, (y2 - y1) * 0.22)) * dpr);
+        const padding = 4 * dpr;
+        const barHeight = fontSize + padding * 2;
+        const barY = y1 - barHeight >= 0 ? y1 - barHeight : y1;
 
-      ctx.fillStyle = "#fff";
-      ctx.font = `${12 * k}px sans-serif`;
-      ctx.fillText(face.matched ? face.student_name || "Unknown" : "Unknown", x1 + 4 * k, y1 - 6 * k);
-    });
-  }, [results]);
+        ctx.font = `600 ${fontSize}px sans-serif`;
+        const labelWidth = Math.max(x2 - x1, ctx.measureText(label).width + padding * 2);
+        ctx.fillStyle = color;
+        ctx.fillRect(x1, barY, labelWidth, barHeight);
+        ctx.fillStyle = "#fff";
+        ctx.textBaseline = "middle";
+        ctx.fillText(label, x1 + padding, barY + barHeight / 2);
+      }
+    }
 
-  useEffect(() => { drawBoundingBoxes(); }, [drawBoundingBoxes]);
+    ctx.globalAlpha = 1;
+  }, []);
+
+  const startCamera = useCallback(async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: "user",
+          width: { ideal: 640 },
+          height: { ideal: 480 },
+          frameRate: { ideal: 30, max: 30 },
+        },
+      });
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
+      setRecognizeError(null);
+      setIsCameraActive(true);
+    } catch (err) {
+      const msg = err instanceof DOMException && err.name === "NotAllowedError"
+        ? "Izin kamera ditolak. Berikan izin kamera di browser."
+        : "Kamera tidak dapat diakses. Pastikan kamera tersedia.";
+      alert(msg);
+    }
+  }, []);
+
+  const stopCamera = useCallback(() => {
+    cameraActiveRef.current = false;
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+    detectAbortRef.current?.abort();
+    detectAbortRef.current = null;
+    recognizeAbortRef.current?.abort();
+    recognizeAbortRef.current = null;
+    tracksRef.current = [];
+    identitiesRef.current = [];
+    captureSizeRef.current = { width: 0, height: 0 };
+    detectWindowRef.current = { responses: 0, startedAt: 0, aiMs: 0 };
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+    setResults([]);
+    setDetectStats({ fps: 0, aiMs: 0 });
+    setIsCameraActive(false);
+  }, []);
+
+  // Cheap detection loop for the overlay: runs at a bounded cadence and skips
+  // a tick while the previous request is still in flight, so slow hardware
+  // degrades the frame rate instead of piling up requests.
+  useEffect(() => {
+    if (!isCameraActive || selectedSessionId === null) return;
+
+    cameraActiveRef.current = true;
+
+    const tick = async () => {
+      if (!cameraActiveRef.current || detectBusyRef.current) return;
+
+      detectBusyRef.current = true;
+      try {
+        const frame = await captureFrame(detectCanvasRef.current, DETECT_JPEG_QUALITY);
+        if (!frame || !cameraActiveRef.current) return;
+
+        const controller = new AbortController();
+        detectAbortRef.current = controller;
+
+        const formData = new FormData();
+        formData.append("image", frame.blob, "frame.jpg");
+        formData.append("attendance_session_id", String(selectedSessionId));
+
+        const res = await api.post("/attendance/detect", formData, {
+          headers: { "Content-Type": "multipart/form-data" },
+          signal: controller.signal,
+          timeout: 8000,
+        });
+
+        if (cameraActiveRef.current) {
+          applyDetections(res.data.faces || [], frame.width, frame.height);
+
+          const now = performance.now();
+          const window = detectWindowRef.current;
+          const startedAt = window.startedAt || now;
+          const responses = window.responses + 1;
+          const aiMs = Number(res.data.processing_time_ms) || 0;
+
+          if (now - startedAt >= 1000) {
+            setDetectStats({
+              fps: (responses * 1000) / (now - startedAt),
+              aiMs,
+            });
+            detectWindowRef.current = { responses: 0, startedAt: now, aiMs };
+          } else {
+            detectWindowRef.current = { responses, startedAt, aiMs };
+          }
+        }
+      } catch {
+        // Detection is best-effort; the recognition loop reports real errors.
+      } finally {
+        detectBusyRef.current = false;
+      }
+    };
+
+    const timer = window.setInterval(() => {
+      void tick();
+    }, DETECT_INTERVAL_MS);
+    void tick();
+
+    return () => {
+      window.clearInterval(timer);
+      cameraActiveRef.current = false;
+      detectAbortRef.current?.abort();
+      detectAbortRef.current = null;
+      detectBusyRef.current = false;
+    };
+  }, [applyDetections, captureFrame, isCameraActive, selectedSessionId]);
+
+  // Expensive recognition loop: identities, attendance records and stats.
+  useEffect(() => {
+    if (!isCameraActive || selectedSessionId === null) return;
+
+    let active = true;
+
+    const tick = async () => {
+      if (!cameraActiveRef.current || recognizeBusyRef.current) return;
+
+      recognizeBusyRef.current = true;
+      try {
+        const frame = await captureFrame(recognizeCanvasRef.current, RECOGNIZE_JPEG_QUALITY);
+        if (!frame || !active) return;
+
+        const controller = new AbortController();
+        recognizeAbortRef.current = controller;
+
+        const formData = new FormData();
+        formData.append("image", frame.blob, "frame.jpg");
+        formData.append("attendance_session_id", String(selectedSessionId));
+
+        const res = await api.post("/attendance/recognize", formData, {
+          headers: { "Content-Type": "multipart/form-data" },
+          signal: controller.signal,
+          timeout: 30000,
+        });
+
+        if (!active) return;
+
+        const faces: RecognitionResult[] = res.data.faces || [];
+        setResults(faces);
+        setStats({
+          detected: faces.length,
+          recorded: faces.filter((face) => face.status === "recorded").length,
+          alreadyRecorded: faces.filter((face) => face.status === "already_recorded").length,
+          unknown: faces.filter((face) => face.status === "unknown").length,
+        });
+        setRecognizeError(null);
+
+        const capturedAt = performance.now();
+        identitiesRef.current = faces.map((face) => ({
+          box: normalizeBox(face.bbox, frame.width, frame.height),
+          matched: face.matched,
+          studentName: face.student_name,
+          status: face.status,
+          distance: face.distance,
+          capturedAt,
+        }));
+      } catch (error) {
+        if (!isCanceledError(error) && active) {
+          setRecognizeError("Gagal memproses frame. Periksa koneksi ke server / layanan AI.");
+        }
+      } finally {
+        recognizeBusyRef.current = false;
+      }
+    };
+
+    const timer = window.setInterval(() => {
+      void tick();
+    }, RECOGNIZE_INTERVAL_MS);
+    void tick();
+
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+      recognizeAbortRef.current?.abort();
+      recognizeAbortRef.current = null;
+      recognizeBusyRef.current = false;
+      identitiesRef.current = [];
+    };
+  }, [captureFrame, isCameraActive, selectedSessionId]);
+
+  // Draw every animation frame; boxes glide toward the latest detection and
+  // fade out when a face leaves the frame, instead of freezing between results.
+  useEffect(() => {
+    if (!isCameraActive) {
+      drawOverlay();
+      return;
+    }
+
+    let frameId = 0;
+    let lastTimestamp = performance.now();
+
+    const render = (timestamp: number) => {
+      const delta = Math.min(120, timestamp - lastTimestamp);
+      lastTimestamp = timestamp;
+      stepTracks(delta);
+      drawOverlay();
+      frameId = window.requestAnimationFrame(render);
+    };
+
+    frameId = window.requestAnimationFrame(render);
+
+    return () => window.cancelAnimationFrame(frameId);
+  }, [drawOverlay, isCameraActive, stepTracks]);
 
   // Keep boxes aligned when the preview box resizes (window resize/zoom).
   useEffect(() => {
-    window.addEventListener("resize", drawBoundingBoxes);
-    return () => window.removeEventListener("resize", drawBoundingBoxes);
-  }, [drawBoundingBoxes]);
+    window.addEventListener("resize", drawOverlay);
+    return () => window.removeEventListener("resize", drawOverlay);
+  }, [drawOverlay]);
+
+  useEffect(() => {
+    return () => {
+      cameraActiveRef.current = false;
+      streamRef.current?.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+      detectAbortRef.current?.abort();
+      recognizeAbortRef.current?.abort();
+    };
+  }, []);
 
   const canStartCamera = selectedSessionId !== null;
 
@@ -352,7 +728,8 @@ export default function TeacherAttendancePage() {
                 <div className="relative aspect-video w-full overflow-hidden rounded-lg bg-black">
                   <video ref={videoRef} autoPlay playsInline muted className="h-full w-full object-cover" />
                   <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" />
-                  <canvas ref={captureCanvasRef} className="hidden" />
+                  <canvas ref={detectCanvasRef} className="hidden" />
+                  <canvas ref={recognizeCanvasRef} className="hidden" />
                   {!isCameraActive && (
                     <div className="absolute inset-0 flex items-center justify-center">
                       <div className="text-center text-white">
@@ -366,6 +743,18 @@ export default function TeacherAttendancePage() {
                 </div>
                 {recognizeError && (
                   <p className="mt-2 text-xs text-red-600">{recognizeError}</p>
+                )}
+                {isCameraActive && (
+                  <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+                    <span>
+                      Deteksi: {detectStats.fps.toFixed(1)} fps · AI {Math.round(detectStats.aiMs)} ms
+                    </span>
+                    <span className="flex items-center gap-2">
+                      <span className="inline-block h-2 w-2 rounded-full bg-sky-400" /> mendeteksi
+                      <span className="inline-block h-2 w-2 rounded-full bg-emerald-500" /> dikenali
+                      <span className="inline-block h-2 w-2 rounded-full bg-red-500" /> tidak dikenal
+                    </span>
+                  </div>
                 )}
               </CardContent>
             </Card>
