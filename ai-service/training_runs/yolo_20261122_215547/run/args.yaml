@@ -1,7 +1,7 @@
 task: detect
 mode: train
 model: D:\unhas\facerecogetion_yoloV8andFaceNet\ai-service\yolov8s.pt
-data: D:\unhas\facerecogetion_yoloV8andFaceNet\ai-service\training_runs\yolo_20261121_134718\data_face.yaml
+data: D:\unhas\facerecogetion_yoloV8andFaceNet\ai-service\training_runs\yolo_20261122_215547\data_face.yaml
 epochs: 20
 time: null
 patience: 8
@@ -12,7 +12,7 @@ save_period: -1
 cache: false
 device: cpu
 workers: 0
-project: D:\unhas\facerecogetion_yoloV8andFaceNet\ai-service\training_runs\yolo_20261121_134718
+project: D:\unhas\facerecogetion_yoloV8andFaceNet\ai-service\training_runs\yolo_20261122_215547
 name: run
 exist_ok: false
 pretrained: true
@@ -112,4 +112,4 @@ auto_augment: randaugment
 erasing: 0.4
 cfg: null
 tracker: tracktrack.yaml
-save_dir: D:\unhas\facerecogetion_yoloV8andFaceNet\ai-service\training_runs\yolo_20261121_134718\run
+save_dir: D:\unhas\facerecogetion_yoloV8andFaceNet\ai-service\training_runs\yolo_20261122_215547\run

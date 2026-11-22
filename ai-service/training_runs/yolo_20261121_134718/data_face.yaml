@@ -1,5 +1,0 @@
-path: D:/unhas/facerecogetion_yoloV8andFaceNet/datasets/yolo
-train: images/train
-val: images/val
-names:
-  0: face
