@@ -435,10 +435,13 @@ export default function TeacherAttendancePage() {
     if (!isCameraActive || selectedSessionId === null) return;
 
     cameraActiveRef.current = true;
+    let cancelled = false;
+    let timer = 0;
 
     const tick = async () => {
-      if (!cameraActiveRef.current || detectBusyRef.current) return;
+      if (!cameraActiveRef.current) return;
 
+      const startedAt = performance.now();
       detectBusyRef.current = true;
       try {
         const frame = await captureFrame(detectCanvasRef.current, DETECT_JPEG_QUALITY);
@@ -462,34 +465,38 @@ export default function TeacherAttendancePage() {
 
           const now = performance.now();
           const window = detectWindowRef.current;
-          const startedAt = window.startedAt || now;
+          const windowStartedAt = window.startedAt || now;
           const responses = window.responses + 1;
           const aiMs = Number(res.data.processing_time_ms) || 0;
 
-          if (now - startedAt >= 1000) {
+          if (now - windowStartedAt >= 1000) {
             setDetectStats({
-              fps: (responses * 1000) / (now - startedAt),
+              fps: (responses * 1000) / (now - windowStartedAt),
               aiMs,
             });
             detectWindowRef.current = { responses: 0, startedAt: now, aiMs };
           } else {
-            detectWindowRef.current = { responses, startedAt, aiMs };
+            detectWindowRef.current = { responses, startedAt: windowStartedAt, aiMs };
           }
         }
       } catch {
         // Detection is best-effort; the recognition loop reports real errors.
       } finally {
         detectBusyRef.current = false;
+        if (!cancelled) {
+          const elapsed = performance.now() - startedAt;
+          timer = window.setTimeout(() => {
+            void tick();
+          }, Math.max(0, DETECT_INTERVAL_MS - elapsed));
+        }
       }
     };
 
-    const timer = window.setInterval(() => {
-      void tick();
-    }, DETECT_INTERVAL_MS);
     void tick();
 
     return () => {
-      window.clearInterval(timer);
+      cancelled = true;
+      window.clearTimeout(timer);
       cameraActiveRef.current = false;
       detectAbortRef.current?.abort();
       detectAbortRef.current = null;
