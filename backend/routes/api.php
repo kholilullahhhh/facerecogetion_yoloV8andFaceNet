@@ -38,6 +38,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/sessions', [AttendanceController::class, 'storeSession']);
         Route::get('/sessions', [AttendanceController::class, 'getSessions']);
         Route::get('/sessions/{session}', [AttendanceController::class, 'getSession']);
+        Route::get('/sessions/{session}/students', [AttendanceController::class, 'getSessionStudents']);
+        Route::put('/sessions/{session}/students/{student}', [AttendanceController::class, 'setManualStatus']);
+        Route::post('/sessions/{session}/mark-remaining-absent', [AttendanceController::class, 'markRemainingAbsent']);
         Route::put('/sessions/{session}/close', [AttendanceController::class, 'closeSession']);
         Route::post('/record', [AttendanceController::class, 'recordAttendance']);
         Route::post('/detect', [AttendanceController::class, 'detectFaces']);

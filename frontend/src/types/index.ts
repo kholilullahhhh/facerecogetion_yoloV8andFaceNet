@@ -98,6 +98,23 @@ export interface Attendance {
   attendance_session?: AttendanceSession;
 }
 
+export type AttendanceStatus = Attendance["status"];
+
+/** Roster row used by the teacher's manual attendance panel. */
+export interface SessionStudent {
+  id: number;
+  nis: string;
+  name: string;
+  gender: "L" | "P";
+  attendance: {
+    id: number;
+    status: AttendanceStatus;
+    detected_at: string | null;
+    distance: number | null;
+    recognition_confidence: number | null;
+  } | null;
+}
+
 export interface BBox {
   x1: number;
   y1: number;

@@ -108,6 +108,179 @@ class AttendanceController extends Controller
         ]);
     }
 
+    /**
+     * Full class roster for a session, including students who have no
+     * attendance yet. The teacher uses it to record IZIN/SAKIT/ALPA manually.
+     */
+    public function getSessionStudents(Request $request, AttendanceSession $session): JsonResponse
+    {
+        if (! $this->authorizeSession($request, $session)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Anda tidak memiliki akses ke sesi ini.',
+            ], 403);
+        }
+
+        $session->loadMissing(['schedule.class', 'schedule.subject']);
+
+        $students = Student::query()
+            ->where('class_id', $session->schedule->class_id)
+            ->where('status', 'active')
+            ->with(['attendances' => fn ($query) => $query->where('attendance_session_id', $session->id)])
+            ->orderBy('name')
+            ->get()
+            ->map(function (Student $student): array {
+                $attendance = $student->attendances->first();
+
+                return [
+                    'id' => $student->id,
+                    'nis' => $student->nis,
+                    'name' => $student->name,
+                    'gender' => $student->gender,
+                    'attendance' => $attendance ? [
+                        'id' => $attendance->id,
+                        'status' => $attendance->status,
+                        'detected_at' => $attendance->detected_at?->toIso8601String(),
+                        'distance' => $attendance->distance,
+                        'recognition_confidence' => $attendance->recognition_confidence,
+                    ] : null,
+                ];
+            });
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'session' => [
+                    'id' => $session->id,
+                    'status' => $session->status,
+                    'date' => $session->date?->toDateString(),
+                    'class' => $session->schedule->class?->name,
+                    'subject' => $session->schedule->subject?->name,
+                ],
+                'students' => $students,
+            ],
+        ]);
+    }
+
+    /**
+     * Manual status set by the teacher. IZIN/SAKIT cannot be inferred from a
+     * face, so they always come through here. Face data is left untouched when
+     * the student was already recognized.
+     */
+    public function setManualStatus(Request $request, AttendanceSession $session, Student $student): JsonResponse
+    {
+        if (! $this->authorizeSession($request, $session)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Anda tidak memiliki akses ke sesi ini.',
+            ], 403);
+        }
+
+        if ($session->status !== 'active') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Sesi absensi sudah ditutup.',
+            ], 400);
+        }
+
+        $validated = $request->validate([
+            'status' => 'required|string|in:HADIR,ALPA,IZIN,SAKIT',
+        ]);
+
+        $inSessionClass = $student->class_id === $session->schedule->class_id
+            && $student->status === 'active';
+        if (! $inSessionClass) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Siswa bukan anggota kelas pada sesi ini.',
+            ], 422);
+        }
+
+        $attendance = Attendance::firstOrNew([
+            'attendance_session_id' => $session->id,
+            'student_id' => $student->id,
+        ]);
+
+        $attendance->status = $validated['status'];
+        $attendance->detected_at = now();
+        if (! $attendance->exists) {
+            $attendance->distance = null;
+            $attendance->recognition_confidence = null;
+        }
+        $attendance->save();
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'id' => $attendance->id,
+                'status' => $attendance->status,
+                'detected_at' => $attendance->detected_at?->toIso8601String(),
+                'distance' => $attendance->distance,
+                'recognition_confidence' => $attendance->recognition_confidence,
+            ],
+            'message' => 'Status kehadiran berhasil disimpan.',
+        ]);
+    }
+
+    /**
+     * Convenience action at the end of a session: every active student in the
+     * class without an attendance row is marked ALPA. IZIN/SAKIT stay manual.
+     */
+    public function markRemainingAbsent(Request $request, AttendanceSession $session): JsonResponse
+    {
+        if (! $this->authorizeSession($request, $session)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Anda tidak memiliki akses ke sesi ini.',
+            ], 403);
+        }
+
+        if ($session->status !== 'active') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Sesi absensi sudah ditutup.',
+            ], 400);
+        }
+
+        $recordedStudentIds = Attendance::where('attendance_session_id', $session->id)
+            ->pluck('student_id');
+
+        $students = Student::query()
+            ->where('class_id', $session->schedule->class_id)
+            ->where('status', 'active')
+            ->whereNotIn('id', $recordedStudentIds)
+            ->get(['id']);
+
+        if ($students->isEmpty()) {
+            return response()->json([
+                'success' => true,
+                'data' => ['marked' => 0],
+                'message' => 'Semua siswa sudah memiliki status kehadiran.',
+            ]);
+        }
+
+        $now = now();
+        $rows = $students->map(fn (Student $student): array => [
+            'attendance_session_id' => $session->id,
+            'student_id' => $student->id,
+            'status' => 'ALPA',
+            'distance' => null,
+            'recognition_confidence' => null,
+            'detected_at' => $now,
+            'captured_image' => null,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ])->all();
+
+        $marked = Attendance::insertOrIgnore($rows);
+
+        return response()->json([
+            'success' => true,
+            'data' => ['marked' => $marked],
+            'message' => "{$marked} siswa ditandai Alpa.",
+        ]);
+    }
+
     public function closeSession(Request $request, AttendanceSession $session): JsonResponse
     {
         if (! $this->authorizeSession($request, $session)) {
@@ -370,6 +543,19 @@ class AttendanceController extends Controller
 
                 if ($existing) {
                     $record['status'] = 'already_recorded';
+
+                    // ALPA is a provisional "not present yet"; if the student
+                    // shows up later, the camera should still record them.
+                    // Manual IZIN/SAKIT/HADIR stay untouched.
+                    if ($existing->status === 'ALPA') {
+                        $existing->update([
+                            'status' => $this->determineAttendanceStatus($session),
+                            'distance' => $face['distance'],
+                            'recognition_confidence' => $face['detection_confidence'],
+                            'detected_at' => now(),
+                        ]);
+                        $record['status'] = 'recorded';
+                    }
                 } else {
                     $attendanceStatus = $this->determineAttendanceStatus($session);
                     try {
@@ -402,11 +588,12 @@ class AttendanceController extends Controller
     private function determineAttendanceStatus(AttendanceSession $session): string
     {
         // Raw DB values: the model casts turn `date`/`start_time` into full
-        // datetimes, so concatenating the accessors produces an unparseable string.
-        $startTime = Carbon::parse(
-            $session->getRawOriginal('date').' '.$session->schedule->getRawOriginal('start_time'),
-            config('app.timezone')
-        );
+        // datetimes, and SQLite stores `date` with a time part, so build the
+        // timestamp from normalized date + time instead of concatenating raw
+        // strings.
+        $date = Carbon::parse($session->getRawOriginal('date'))->toDateString();
+        $time = Carbon::parse($session->schedule->getRawOriginal('start_time'))->format('H:i:s');
+        $startTime = Carbon::parse("{$date} {$time}", config('app.timezone'));
         $lateThreshold = $startTime->copy()->addMinutes(15);
 
         if (now(config('app.timezone'))->greaterThan($lateThreshold)) {

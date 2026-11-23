@@ -1,13 +1,19 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import axios from "axios";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+} from "@/components/ui/table";
 import api from "@/lib/api";
-import type { BBox, RecognitionResult, Schedule } from "@/types";
+import type {
+  AttendanceStatus, BBox, RecognitionResult, Schedule, SessionStudent,
+} from "@/types";
 import type { FaceDetector } from "@mediapipe/tasks-vision";
 import { Camera, CameraOff, AlertCircle, Plus, X } from "lucide-react";
 
@@ -33,6 +39,21 @@ const IDENTITY_TTL_MS = 6000;
 const MATCH_IOU = 0.15;
 const MATCH_CENTER_DISTANCE = 0.2;
 const TRACK_CENTER_DISTANCE = 0.22;
+
+const MANUAL_STATUS_OPTIONS: Array<{ value: Exclude<AttendanceStatus, "TERLAMBAT">; label: string }> = [
+  { value: "HADIR", label: "Hadir" },
+  { value: "IZIN", label: "Izin" },
+  { value: "SAKIT", label: "Sakit" },
+  { value: "ALPA", label: "Alpa" },
+];
+
+const STATUS_BADGE: Record<AttendanceStatus, { label: string; className: string }> = {
+  HADIR: { label: "Hadir", className: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+  TERLAMBAT: { label: "Terlambat", className: "bg-amber-50 text-amber-700 border-amber-200" },
+  IZIN: { label: "Izin", className: "bg-blue-50 text-blue-700 border-blue-200" },
+  SAKIT: { label: "Sakit", className: "bg-orange-50 text-orange-700 border-orange-200" },
+  ALPA: { label: "Alpa", className: "bg-red-50 text-red-700 border-red-200" },
+};
 
 interface Session {
   id: number;
@@ -122,6 +143,13 @@ export default function TeacherAttendancePage() {
   const [recognizeError, setRecognizeError] = useState<string | null>(null);
   const [detectStats, setDetectStats] = useState({ fps: 0, aiMs: 0 });
   const [clientDetectorStatus, setClientDetectorStatus] = useState<"loading" | "ready" | "failed">("loading");
+  const [roster, setRoster] = useState<SessionStudent[]>([]);
+  const [rosterLoading, setRosterLoading] = useState(false);
+  const [rosterError, setRosterError] = useState<string | null>(null);
+  const [rosterNotice, setRosterNotice] = useState<string | null>(null);
+  const [savingStudentId, setSavingStudentId] = useState<number | null>(null);
+  const [markingAbsent, setMarkingAbsent] = useState(false);
+  const [rosterRefresh, setRosterRefresh] = useState(0);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const detectCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -166,6 +194,53 @@ export default function TeacherAttendancePage() {
         setLoadError("Gagal memuat daftar jadwal.");
       });
   }, []);
+
+  // Roster for the manual attendance panel: every active student in the
+  // session's class, whether or not they already have an attendance row.
+  useEffect(() => {
+    if (selectedSessionId === null) return;
+
+    let cancelled = false;
+
+    api.get(`/attendance/sessions/${selectedSessionId}/students`)
+      .then((res) => {
+        if (cancelled) return;
+        const data = res.data.data;
+        setRoster(Array.isArray(data?.students) ? data.students : []);
+        setRosterError(null);
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        const message = axios.isAxiosError(error) ? error.response?.data?.message : null;
+        setRosterError(message || "Gagal memuat daftar siswa sesi ini.");
+      })
+      .finally(() => {
+        if (!cancelled) setRosterLoading(false);
+      });
+
+    return () => { cancelled = true; };
+  }, [selectedSessionId, rosterRefresh]);
+
+  const rosterCounts = useMemo(() => {
+    const counts = { hadir: 0, terlambat: 0, izin: 0, sakit: 0, alpa: 0, belum: 0 };
+    for (const student of roster) {
+      switch (student.attendance?.status) {
+        case "HADIR": counts.hadir += 1; break;
+        case "TERLAMBAT": counts.terlambat += 1; break;
+        case "IZIN": counts.izin += 1; break;
+        case "SAKIT": counts.sakit += 1; break;
+        case "ALPA": counts.alpa += 1; break;
+        default: counts.belum += 1;
+      }
+    }
+    return counts;
+  }, [roster]);
+
+  const selectedSession = useMemo(
+    () => sessions.find((session) => session.id === selectedSessionId) ?? null,
+    [sessions, selectedSessionId]
+  );
+  const sessionIsActive = selectedSession?.status !== "closed";
 
   // Load the browser-side face detector once. The WASM runtime and model are
   // served locally from /public/mediapipe (no CDN at runtime).
@@ -231,12 +306,67 @@ export default function TeacherAttendancePage() {
       const newSession = res.data.data;
       setSessions((prev) => [newSession, ...prev]);
       setSelectedSessionId(newSession.id);
+      setRoster([]);
+      setRosterLoading(true);
       setShowCreateForm(false);
       setCreateForm({ schedule_id: "", date: "", start_time: "" });
     } catch {
       alert("Gagal membuat sesi absensi.");
     } finally {
       setCreating(false);
+    }
+  };
+
+  const applyManualStatus = async (
+    student: SessionStudent,
+    status: Exclude<AttendanceStatus, "TERLAMBAT">
+  ) => {
+    if (selectedSessionId === null || savingStudentId !== null) return;
+
+    setSavingStudentId(student.id);
+    setRosterError(null);
+    setRosterNotice(null);
+
+    try {
+      const res = await api.put(
+        `/attendance/sessions/${selectedSessionId}/students/${student.id}`,
+        { status }
+      );
+      const attendance = res.data.data as SessionStudent["attendance"];
+
+      setRoster((previous) => previous.map((row) => (
+        row.id === student.id ? { ...row, attendance } : row
+      )));
+      setRosterNotice(`${student.name} ditandai ${STATUS_BADGE[status].label}.`);
+    } catch (error) {
+      const message = axios.isAxiosError(error) ? error.response?.data?.message : null;
+      setRosterError(message || "Gagal menyimpan status kehadiran.");
+    } finally {
+      setSavingStudentId(null);
+    }
+  };
+
+  const markRemainingAbsent = async () => {
+    if (selectedSessionId === null || rosterCounts.belum === 0 || markingAbsent) return;
+    if (!window.confirm(
+      `Tandai ${rosterCounts.belum} siswa yang belum absen sebagai Alpa?`
+    )) return;
+
+    setMarkingAbsent(true);
+    setRosterError(null);
+    setRosterNotice(null);
+
+    try {
+      const res = await api.post(
+        `/attendance/sessions/${selectedSessionId}/mark-remaining-absent`
+      );
+      setRosterNotice(res.data.message || "Siswa yang belum absen ditandai Alpa.");
+      setRosterRefresh((value) => value + 1);
+    } catch (error) {
+      const message = axios.isAxiosError(error) ? error.response?.data?.message : null;
+      setRosterError(message || "Gagal menandai siswa yang belum absen.");
+    } finally {
+      setMarkingAbsent(false);
     }
   };
 
@@ -671,6 +801,12 @@ export default function TeacherAttendancePage() {
         });
         setRecognizeError(null);
 
+        // A new student was recorded (or an ALPA was upgraded): pull the
+        // roster again so the manual panel reflects it.
+        if (faces.some((face) => face.status === "recorded")) {
+          setRosterRefresh((value) => value + 1);
+        }
+
         const capturedAt = performance.now();
         identitiesRef.current = faces.map((face) => ({
           box: normalizeBox(face.bbox, frame.width, frame.height),
@@ -836,6 +972,10 @@ export default function TeacherAttendancePage() {
                   setSelectedSessionId(val);
                   setResults([]);
                   setStats({ detected: 0, recorded: 0, alreadyRecorded: 0, unknown: 0 });
+                  setRoster([]);
+                  setRosterLoading(val !== null);
+                  setRosterError(null);
+                  setRosterNotice(null);
                 }}
               >
                 <option value="">-- Pilih Sesi --</option>
@@ -969,6 +1109,154 @@ export default function TeacherAttendancePage() {
             </Card>
           </div>
         </div>
+
+        <Card>
+          <CardHeader className="gap-2">
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <div>
+                <CardTitle className="text-sm">Daftar Kehadiran Siswa</CardTitle>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Hadir otomatis lewat kamera. Izin dan sakit diisi manual oleh guru.
+                </p>
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => void markRemainingAbsent()}
+                disabled={
+                  selectedSessionId === null
+                  || rosterCounts.belum === 0
+                  || markingAbsent
+                  || !sessionIsActive
+                }
+              >
+                {markingAbsent
+                  ? "Menyimpan..."
+                  : rosterCounts.belum === 0
+                  ? "Semua siswa sudah tercatat"
+                  : `Tandai ${rosterCounts.belum} belum absen · Alpa`}
+              </Button>
+            </div>
+
+            {roster.length > 0 && (
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                <span className="flex items-center gap-1">
+                  <span className="h-2 w-2 rounded-full bg-emerald-500" /> Hadir {rosterCounts.hadir}
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="h-2 w-2 rounded-full bg-amber-500" /> Terlambat {rosterCounts.terlambat}
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="h-2 w-2 rounded-full bg-blue-500" /> Izin {rosterCounts.izin}
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="h-2 w-2 rounded-full bg-orange-500" /> Sakit {rosterCounts.sakit}
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="h-2 w-2 rounded-full bg-red-500" /> Alpa {rosterCounts.alpa}
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="h-2 w-2 rounded-full bg-slate-300" /> Belum {rosterCounts.belum}
+                </span>
+              </div>
+            )}
+          </CardHeader>
+          <CardContent>
+            {rosterNotice && (
+              <p className="mb-2 text-xs text-emerald-600">{rosterNotice}</p>
+            )}
+            {rosterError && (
+              <p className="mb-2 text-xs text-red-600">{rosterError}</p>
+            )}
+            {!sessionIsActive && (
+              <p className="mb-2 text-xs text-amber-600">
+                Sesi sudah ditutup. Status hanya dapat dilihat.
+              </p>
+            )}
+
+            {selectedSessionId === null ? (
+              <p className="text-sm text-muted-foreground">
+                Pilih sesi absensi untuk melihat daftar siswa.
+              </p>
+            ) : rosterLoading && roster.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Memuat daftar siswa...</p>
+            ) : roster.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                Belum ada siswa aktif di kelas ini.
+              </p>
+            ) : (
+              <>
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>NIS</TableHead>
+                        <TableHead>Nama Siswa</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead className="text-right">Ubah Status</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {roster.map((student) => {
+                        const status = student.attendance?.status ?? null;
+                        return (
+                          <TableRow key={student.id}>
+                            <TableCell className="font-mono text-xs">{student.nis}</TableCell>
+                            <TableCell>{student.name}</TableCell>
+                            <TableCell>
+                              {status ? (
+                                <div className="flex flex-col gap-0.5">
+                                  <Badge
+                                    variant="outline"
+                                    className={`w-fit ${STATUS_BADGE[status].className}`}
+                                  >
+                                    {STATUS_BADGE[status].label}
+                                  </Badge>
+                                  <span className="text-[10px] text-muted-foreground">
+                                    {student.attendance?.distance != null ? "via kamera" : "input manual"}
+                                  </span>
+                                </div>
+                              ) : (
+                                <span className="text-xs text-muted-foreground">Belum absen</span>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex flex-wrap justify-end gap-1">
+                                {MANUAL_STATUS_OPTIONS.map((option) => {
+                                  const active = status === option.value;
+                                  return (
+                                    <Button
+                                      key={option.value}
+                                      type="button"
+                                      size="sm"
+                                      variant={active ? "default" : "outline"}
+                                      className="h-7 px-2 text-xs"
+                                      disabled={!sessionIsActive || savingStudentId !== null || active}
+                                      onClick={() => void applyManualStatus(student, option.value)}
+                                    >
+                                      {option.label}
+                                    </Button>
+                                  );
+                                })}
+                                {savingStudentId === student.id && (
+                                  <span className="self-center text-[10px] text-muted-foreground">...</span>
+                                )}
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+                {rosterLoading && (
+                  <p className="mt-2 text-xs text-muted-foreground">Memperbarui daftar...</p>
+                )}
+              </>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </DashboardLayout>
   );
