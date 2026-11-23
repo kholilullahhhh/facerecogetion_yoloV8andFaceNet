@@ -8,11 +8,19 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import api from "@/lib/api";
 import type { BBox, RecognitionResult, Schedule } from "@/types";
+import type { FaceDetector } from "@mediapipe/tasks-vision";
 import { Camera, CameraOff, AlertCircle, Plus, X } from "lucide-react";
 
-// Detect often (frequent, cheap frames) and recognize less often (expensive,
-// writes attendance). Boxes are interpolated between detections so the overlay
-// moves every animation frame instead of jumping from result to result.
+// MediaPipe tracks faces in the browser at camera framerate; the server's
+// YOLO+FaceNet pass only supplies identity/attendance every couple of seconds.
+// If MediaPipe cannot load, the browser falls back to the lightweight server
+// detector, with interpolation between its slower results.
+const MEDIAPIPE_WASM_PATH = "/mediapipe/wasm";
+const MEDIAPIPE_MODEL_PATH = "/mediapipe/blaze_face_short_range.tflite";
+const MEDIAPIPE_MIN_SCORE = 0.5;
+const CLIENT_SMOOTHING_TAU_MS = 35;
+const CLIENT_TRACK_TTL_MS = 350;
+const CLIENT_TRACK_FADE_MS = 120;
 const CAPTURE_MAX_SIDE = 640;
 const DETECT_INTERVAL_MS = 180;
 const RECOGNIZE_INTERVAL_MS = 2000;
@@ -113,11 +121,14 @@ export default function TeacherAttendancePage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [recognizeError, setRecognizeError] = useState<string | null>(null);
   const [detectStats, setDetectStats] = useState({ fps: 0, aiMs: 0 });
+  const [clientDetectorStatus, setClientDetectorStatus] = useState<"loading" | "ready" | "failed">("loading");
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const detectCanvasRef = useRef<HTMLCanvasElement>(null);
   const recognizeCanvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const faceDetectorRef = useRef<FaceDetector | null>(null);
+  const lastVideoTimeRef = useRef(-1);
   const detectBusyRef = useRef(false);
   const recognizeBusyRef = useRef(false);
   const detectAbortRef = useRef<AbortController | null>(null);
@@ -127,6 +138,10 @@ export default function TeacherAttendancePage() {
   const captureSizeRef = useRef({ width: 0, height: 0 });
   const cameraActiveRef = useRef(false);
   const detectWindowRef = useRef({ responses: 0, startedAt: 0, aiMs: 0 });
+  const clientWindowRef = useRef({ frames: 0, startedAt: 0, ms: 0 });
+  const smoothingTauRef = useRef(SMOOTHING_TAU_MS);
+  const trackTtlRef = useRef(TRACK_TTL_MS);
+  const trackFadeRef = useRef(TRACK_FADE_MS);
 
   const fetchSessions = () => {
     api.get("/attendance/sessions", { params: { status: "active", per_page: 50 } })
@@ -151,6 +166,62 @@ export default function TeacherAttendancePage() {
         setLoadError("Gagal memuat daftar jadwal.");
       });
   }, []);
+
+  // Load the browser-side face detector once. The WASM runtime and model are
+  // served locally from /public/mediapipe (no CDN at runtime).
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadDetector = async () => {
+      try {
+        const { FaceDetector, FilesetResolver } = await import("@mediapipe/tasks-vision");
+        const vision = await FilesetResolver.forVisionTasks(MEDIAPIPE_WASM_PATH);
+
+        const createDetector = (delegate: "GPU" | "CPU") =>
+          FaceDetector.createFromOptions(vision, {
+            baseOptions: { modelAssetPath: MEDIAPIPE_MODEL_PATH, delegate },
+            runningMode: "VIDEO",
+            minDetectionConfidence: MEDIAPIPE_MIN_SCORE,
+          });
+
+        let detector: FaceDetector;
+        try {
+          detector = await createDetector("GPU");
+        } catch {
+          detector = await createDetector("CPU");
+        }
+
+        if (cancelled) {
+          detector.close();
+          return;
+        }
+
+        faceDetectorRef.current = detector;
+        setClientDetectorStatus("ready");
+      } catch {
+        if (!cancelled) {
+          setClientDetectorStatus("failed");
+        }
+      }
+    };
+
+    void loadDetector();
+
+    return () => {
+      cancelled = true;
+      faceDetectorRef.current?.close();
+      faceDetectorRef.current = null;
+    };
+  }, []);
+
+  // Per-frame boxes need almost no smoothing and a short trail; the slower
+  // server fallback keeps the longer interpolation used before.
+  useEffect(() => {
+    const ready = clientDetectorStatus === "ready";
+    smoothingTauRef.current = ready ? CLIENT_SMOOTHING_TAU_MS : SMOOTHING_TAU_MS;
+    trackTtlRef.current = ready ? CLIENT_TRACK_TTL_MS : TRACK_TTL_MS;
+    trackFadeRef.current = ready ? CLIENT_TRACK_FADE_MS : TRACK_FADE_MS;
+  }, [clientDetectorStatus]);
 
   const handleCreateSession = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -287,19 +358,73 @@ export default function TeacherAttendancePage() {
       }
 
       const anchor = overlapMatch ?? proximityMatch;
+      if (!anchor) {
+        // Keep the last known identity while the track is alive; recognition
+        // refreshes it every couple of seconds and corrects mistakes.
+        return track;
+      }
       return {
         ...track,
-        matched: anchor?.matched ?? null,
-        studentName: anchor?.studentName ?? null,
-        status: anchor?.status ?? null,
-        distance: anchor?.distance ?? null,
+        matched: anchor.matched,
+        studentName: anchor.studentName,
+        status: anchor.status,
+        distance: anchor.distance,
       };
     });
   }, []);
 
+  const detectWithClient = useCallback((timestamp: number) => {
+    const detector = faceDetectorRef.current;
+    const video = videoRef.current;
+    if (!detector || !video || video.readyState < 2) return;
+    if (!video.videoWidth || !video.videoHeight) return;
+
+    // A 60 Hz display would otherwise run the detector twice per camera frame.
+    if (video.currentTime === lastVideoTimeRef.current) return;
+    lastVideoTimeRef.current = video.currentTime;
+
+    const startedAt = performance.now();
+    const result = detector.detectForVideo(video, timestamp);
+    const elapsed = performance.now() - startedAt;
+    const width = video.videoWidth;
+    const height = video.videoHeight;
+    captureSizeRef.current = { width, height };
+
+    const faces = result.detections.flatMap((detection) => {
+      const box = detection.boundingBox;
+      if (!box) return [];
+      const score = detection.categories[0]?.score ?? 0;
+      if (score < MEDIAPIPE_MIN_SCORE) return [];
+
+      return [{
+        bbox: {
+          x1: box.originX,
+          y1: box.originY,
+          x2: box.originX + box.width,
+          y2: box.originY + box.height,
+        },
+      }];
+    });
+
+    applyDetections(faces, width, height);
+
+    const now = performance.now();
+    const window = clientWindowRef.current;
+    const windowStartedAt = window.startedAt || now;
+    const frames = window.frames + 1;
+    const totalMs = window.ms + elapsed;
+
+    if (now - windowStartedAt >= 1000) {
+      setDetectStats({ fps: (frames * 1000) / (now - windowStartedAt), aiMs: totalMs / frames });
+      clientWindowRef.current = { frames: 0, startedAt: now, ms: 0 };
+    } else {
+      clientWindowRef.current = { frames, startedAt: windowStartedAt, ms: totalMs };
+    }
+  }, [applyDetections]);
+
   const stepTracks = useCallback((deltaMs: number) => {
     const now = performance.now();
-    const damping = 1 - Math.exp(-deltaMs / SMOOTHING_TAU_MS);
+    const damping = 1 - Math.exp(-deltaMs / smoothingTauRef.current);
 
     tracksRef.current = tracksRef.current
       .map((track) => {
@@ -309,12 +434,12 @@ export default function TeacherAttendancePage() {
           x2: track.box.x2 + (track.target.x2 - track.box.x2) * damping,
           y2: track.box.y2 + (track.target.y2 - track.box.y2) * damping,
         };
-        const fading = now - track.lastSeen > TRACK_TTL_MS;
+        const fading = now - track.lastSeen > trackTtlRef.current;
 
         return {
           ...track,
           box,
-          opacity: fading ? Math.max(0, track.opacity - deltaMs / TRACK_FADE_MS) : track.opacity,
+          opacity: fading ? Math.max(0, track.opacity - deltaMs / trackFadeRef.current) : track.opacity,
         };
       })
       .filter((track) => track.opacity > 0);
@@ -396,6 +521,8 @@ export default function TeacherAttendancePage() {
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
       }
+      cameraActiveRef.current = true;
+      lastVideoTimeRef.current = -1;
       setRecognizeError(null);
       setIsCameraActive(true);
     } catch (err) {
@@ -420,6 +547,8 @@ export default function TeacherAttendancePage() {
     identitiesRef.current = [];
     captureSizeRef.current = { width: 0, height: 0 };
     detectWindowRef.current = { responses: 0, startedAt: 0, aiMs: 0 };
+    clientWindowRef.current = { frames: 0, startedAt: 0, ms: 0 };
+    lastVideoTimeRef.current = -1;
     if (videoRef.current) {
       videoRef.current.srcObject = null;
     }
@@ -428,13 +557,13 @@ export default function TeacherAttendancePage() {
     setIsCameraActive(false);
   }, []);
 
-  // Cheap detection loop for the overlay: runs at a bounded cadence and skips
-  // a tick while the previous request is still in flight, so slow hardware
-  // degrades the frame rate instead of piling up requests.
+  // Server detection fallback: used only while MediaPipe is loading or when it
+  // could not start. It runs at a bounded cadence and skips ticks while the
+  // previous request is in flight.
   useEffect(() => {
     if (!isCameraActive || selectedSessionId === null) return;
+    if (clientDetectorStatus === "ready") return;
 
-    cameraActiveRef.current = true;
     let cancelled = false;
     let timer = 0;
 
@@ -497,12 +626,11 @@ export default function TeacherAttendancePage() {
     return () => {
       cancelled = true;
       window.clearTimeout(timer);
-      cameraActiveRef.current = false;
       detectAbortRef.current?.abort();
       detectAbortRef.current = null;
       detectBusyRef.current = false;
     };
-  }, [applyDetections, captureFrame, isCameraActive, selectedSessionId]);
+  }, [applyDetections, captureFrame, clientDetectorStatus, isCameraActive, selectedSessionId]);
 
   // Expensive recognition loop: identities, attendance records and stats.
   useEffect(() => {
@@ -590,6 +718,15 @@ export default function TeacherAttendancePage() {
     const render = (timestamp: number) => {
       const delta = Math.min(120, timestamp - lastTimestamp);
       lastTimestamp = timestamp;
+
+      if (faceDetectorRef.current) {
+        try {
+          detectWithClient(timestamp);
+        } catch {
+          // Keep drawing the last boxes if a detector frame fails.
+        }
+      }
+
       stepTracks(delta);
       drawOverlay();
       frameId = window.requestAnimationFrame(render);
@@ -598,7 +735,7 @@ export default function TeacherAttendancePage() {
     frameId = window.requestAnimationFrame(render);
 
     return () => window.cancelAnimationFrame(frameId);
-  }, [drawOverlay, isCameraActive, stepTracks]);
+  }, [detectWithClient, drawOverlay, isCameraActive, stepTracks]);
 
   // Keep boxes aligned when the preview box resizes (window resize/zoom).
   useEffect(() => {
@@ -754,7 +891,12 @@ export default function TeacherAttendancePage() {
                 {isCameraActive && (
                   <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
                     <span>
-                      Deteksi: {detectStats.fps.toFixed(1)} fps · AI {Math.round(detectStats.aiMs)} ms
+                      Deteksi: {detectStats.fps.toFixed(1)} fps · {Math.round(detectStats.aiMs)} ms
+                      {clientDetectorStatus === "ready"
+                        ? " · MediaPipe"
+                        : clientDetectorStatus === "loading"
+                        ? " · memuat model..."
+                        : " · server"}
                     </span>
                     <span className="flex items-center gap-2">
                       <span className="inline-block h-2 w-2 rounded-full bg-sky-400" /> mendeteksi

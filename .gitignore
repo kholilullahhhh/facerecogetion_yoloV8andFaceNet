@@ -16,6 +16,9 @@ __pycache__/
 *.pth
 *.onnx
 *.tflite
+# The MediaPipe face detector is a small public model the web app needs at
+# runtime; unlike trained weights it is safe to ship (Apache-2.0).
+!frontend/public/mediapipe/blaze_face_short_range.tflite
 
 # Datasets
 datasets/
@@ -33,6 +36,9 @@ backend/storage/app/public/attendance/*
 frontend/.next/
 frontend/out/
 backend/vendor/
+
+# Vendored MediaPipe WASM (regenerated on npm install)
+frontend/public/mediapipe/wasm/
 
 # IDE
 .vscode/
