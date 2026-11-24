@@ -75,10 +75,10 @@ function DashboardContent({ summary }: { summary: DashboardSummary }) {
         <div className="space-y-4 lg:col-span-2">
           <AttendanceOverview
             present={summary.present}
-            late={summary.late}
             excused={summary.excused}
             sick={summary.sick}
             absent={summary.absent}
+            rate={summary.attendance_rate}
           />
           <RecentAttendance />
         </div>

@@ -8,14 +8,26 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import api from "@/lib/api";
+import {
+  ATTENDANCE_STATUSES, STATUS_META, formatDate, formatDateTime,
+} from "@/lib/attendance-status";
 import type {
-  AttendanceStatus, BBox, RecognitionResult, Schedule, SessionStudent,
+  AttendanceHistoryEntry, AttendanceStatus, BBox, RecognitionResult, Schedule, SessionStudent,
 } from "@/types";
 import type { FaceDetector } from "@mediapipe/tasks-vision";
-import { Camera, CameraOff, AlertCircle, Plus, X } from "lucide-react";
+import {
+  Camera, CameraOff, AlertCircle, Plus, X, MoreHorizontal, Pencil, Eye, History,
+  LockKeyhole, Search,
+} from "lucide-react";
 
 // MediaPipe tracks faces in the browser at camera framerate; the server's
 // YOLO+FaceNet pass only supplies identity/attendance every couple of seconds.
@@ -40,25 +52,32 @@ const MATCH_IOU = 0.15;
 const MATCH_CENTER_DISTANCE = 0.2;
 const TRACK_CENTER_DISTANCE = 0.22;
 
-const MANUAL_STATUS_OPTIONS: Array<{ value: Exclude<AttendanceStatus, "TERLAMBAT">; label: string }> = [
+const MANUAL_STATUS_OPTIONS = ATTENDANCE_STATUSES;
+
+const SOURCE_LABEL: Record<string, string> = {
+  MANUAL: "Perubahan manual guru",
+  FACE_RECOGNITION: "Pengenalan wajah",
+  SESSION_CLOSE: "Otomatis saat sesi ditutup",
+  TEACHER_BULK: "Tindakan guru",
+  SYSTEM: "Sistem",
+};
+
+type StatusFilter = AttendanceStatus | "ALL" | "BELUM";
+
+const STATUS_FILTER_OPTIONS: Array<{ value: StatusFilter; label: string }> = [
+  { value: "ALL", label: "Semua" },
   { value: "HADIR", label: "Hadir" },
+  { value: "ALPA", label: "Alpa" },
   { value: "IZIN", label: "Izin" },
   { value: "SAKIT", label: "Sakit" },
-  { value: "ALPA", label: "Alpa" },
+  { value: "BELUM", label: "Belum" },
 ];
-
-const STATUS_BADGE: Record<AttendanceStatus, { label: string; className: string }> = {
-  HADIR: { label: "Hadir", className: "bg-emerald-50 text-emerald-700 border-emerald-200" },
-  TERLAMBAT: { label: "Terlambat", className: "bg-amber-50 text-amber-700 border-amber-200" },
-  IZIN: { label: "Izin", className: "bg-blue-50 text-blue-700 border-blue-200" },
-  SAKIT: { label: "Sakit", className: "bg-orange-50 text-orange-700 border-orange-200" },
-  ALPA: { label: "Alpa", className: "bg-red-50 text-red-700 border-red-200" },
-};
 
 interface Session {
   id: number;
   date: string;
   start_time: string;
+  end_time?: string | null;
   status: string;
   schedule?: { id: number; subject?: { name: string }; class?: { name: string } };
 }
@@ -129,6 +148,15 @@ function isCanceledError(error: unknown): boolean {
   return axios.isCancel(error) || (error instanceof DOMException && error.name === "AbortError");
 }
 
+function InfoItem({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div className="space-y-0.5">
+      <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
+      <div className="text-sm">{value || "-"}</div>
+    </div>
+  );
+}
+
 export default function TeacherAttendancePage() {
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [results, setResults] = useState<RecognitionResult[]>([]);
@@ -147,9 +175,21 @@ export default function TeacherAttendancePage() {
   const [rosterLoading, setRosterLoading] = useState(false);
   const [rosterError, setRosterError] = useState<string | null>(null);
   const [rosterNotice, setRosterNotice] = useState<string | null>(null);
-  const [savingStudentId, setSavingStudentId] = useState<number | null>(null);
   const [markingAbsent, setMarkingAbsent] = useState(false);
+  const [closingSession, setClosingSession] = useState(false);
   const [rosterRefresh, setRosterRefresh] = useState(0);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
+  const [statusStudent, setStatusStudent] = useState<SessionStudent | null>(null);
+  const [selectedStatus, setSelectedStatus] = useState<AttendanceStatus>("HADIR");
+  const [statusNotes, setStatusNotes] = useState("");
+  const [statusError, setStatusError] = useState<string | null>(null);
+  const [savingStatus, setSavingStatus] = useState(false);
+  const [detailStudent, setDetailStudent] = useState<SessionStudent | null>(null);
+  const [historyStudent, setHistoryStudent] = useState<SessionStudent | null>(null);
+  const [historyEntries, setHistoryEntries] = useState<AttendanceHistoryEntry[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const detectCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -172,11 +212,18 @@ export default function TeacherAttendancePage() {
   const trackFadeRef = useRef(TRACK_FADE_MS);
 
   const fetchSessions = () => {
-    api.get("/attendance/sessions", { params: { status: "active", per_page: 50 } })
+    api.get("/attendance/sessions", { params: { per_page: 50 } })
       .then((res) => {
         const data = res.data.data.data || res.data.data;
-        setSessions(Array.isArray(data) ? data : []);
+        const list = Array.isArray(data) ? data as Session[] : [];
+        setSessions(list);
         setLoadError(null);
+
+        const requestedId = Number(new URLSearchParams(window.location.search).get("session"));
+        if (Number.isFinite(requestedId) && list.some((session) => session.id === requestedId)) {
+          setSelectedSessionId((current) => current ?? requestedId);
+          setRosterLoading(true);
+        }
       })
       .catch(() => {
         setLoadError("Gagal memuat sesi absensi. Coba muat ulang halaman.");
@@ -222,11 +269,10 @@ export default function TeacherAttendancePage() {
   }, [selectedSessionId, rosterRefresh]);
 
   const rosterCounts = useMemo(() => {
-    const counts = { hadir: 0, terlambat: 0, izin: 0, sakit: 0, alpa: 0, belum: 0 };
+    const counts = { hadir: 0, izin: 0, sakit: 0, alpa: 0, belum: 0 };
     for (const student of roster) {
       switch (student.attendance?.status) {
         case "HADIR": counts.hadir += 1; break;
-        case "TERLAMBAT": counts.terlambat += 1; break;
         case "IZIN": counts.izin += 1; break;
         case "SAKIT": counts.sakit += 1; break;
         case "ALPA": counts.alpa += 1; break;
@@ -236,11 +282,27 @@ export default function TeacherAttendancePage() {
     return counts;
   }, [roster]);
 
+  const visibleRoster = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+
+    return roster.filter((student) => {
+      const status = student.attendance?.status ?? null;
+      const matchesStatus = statusFilter === "ALL"
+        || (statusFilter === "BELUM" ? status === null : status === statusFilter);
+      const matchesSearch = query === ""
+        || student.name.toLowerCase().includes(query)
+        || student.nis.toLowerCase().includes(query)
+        || (student.nisn ?? "").toLowerCase().includes(query);
+
+      return matchesStatus && matchesSearch;
+    });
+  }, [roster, searchQuery, statusFilter]);
+
   const selectedSession = useMemo(
     () => sessions.find((session) => session.id === selectedSessionId) ?? null,
     [sessions, selectedSessionId]
   );
-  const sessionIsActive = selectedSession?.status !== "closed";
+  const sessionIsActive = selectedSession?.status === "active";
 
   // Load the browser-side face detector once. The WASM runtime and model are
   // served locally from /public/mediapipe (no CDN at runtime).
@@ -317,34 +379,111 @@ export default function TeacherAttendancePage() {
     }
   };
 
-  const applyManualStatus = async (
-    student: SessionStudent,
-    status: Exclude<AttendanceStatus, "TERLAMBAT">
-  ) => {
-    if (selectedSessionId === null || savingStudentId !== null) return;
-
-    setSavingStudentId(student.id);
+  const openStatusModal = (student: SessionStudent) => {
+    setStatusStudent(student);
+    setSelectedStatus(student.attendance?.status ?? "HADIR");
+    setStatusNotes(student.attendance?.notes ?? "");
+    setStatusError(null);
     setRosterError(null);
     setRosterNotice(null);
+  };
+
+  const openDetailModal = (student: SessionStudent) => {
+    setDetailStudent(student);
+  };
+
+  const openHistoryModal = (student: SessionStudent) => {
+    setHistoryStudent(student);
+    setHistoryEntries([]);
+    setHistoryError(null);
+    setHistoryLoading(true);
+  };
+
+  const submitStatusChange = async () => {
+    if (selectedSessionId === null || statusStudent === null || savingStatus) return;
+
+    if ((selectedStatus === "IZIN" || selectedStatus === "SAKIT") && statusNotes.trim() === "") {
+      setStatusError(`Alasan ${STATUS_META[selectedStatus].label.toLowerCase()} wajib diisi.`);
+      return;
+    }
+
+    setSavingStatus(true);
+    setStatusError(null);
 
     try {
       const res = await api.put(
-        `/attendance/sessions/${selectedSessionId}/students/${student.id}`,
-        { status }
+        `/attendance/sessions/${selectedSessionId}/students/${statusStudent.id}`,
+        {
+          status: selectedStatus,
+          notes: statusNotes.trim() === "" ? null : statusNotes.trim(),
+        }
       );
       const attendance = res.data.data as SessionStudent["attendance"];
 
       setRoster((previous) => previous.map((row) => (
-        row.id === student.id ? { ...row, attendance } : row
+        row.id === statusStudent.id ? { ...row, attendance } : row
       )));
-      setRosterNotice(`${student.name} ditandai ${STATUS_BADGE[status].label}.`);
+      setRosterNotice(`${statusStudent.name} diperbarui menjadi ${STATUS_META[selectedStatus].label}.`);
+      setStatusStudent(null);
     } catch (error) {
-      const message = axios.isAxiosError(error) ? error.response?.data?.message : null;
-      setRosterError(message || "Gagal menyimpan status kehadiran.");
+      const message = axios.isAxiosError(error)
+        ? error.response?.data?.message ?? error.response?.data?.errors?.notes?.[0]
+        : null;
+      setStatusError(message || "Gagal menyimpan status kehadiran.");
     } finally {
-      setSavingStudentId(null);
+      setSavingStatus(false);
     }
   };
+
+  const closeSelectedSession = async () => {
+    if (selectedSession === null || closingSession) return;
+    if (!window.confirm(
+      `Tutup sesi ${selectedSession.schedule?.subject?.name ?? ""} - ${selectedSession.schedule?.class?.name ?? ""}? Semua siswa yang belum memiliki catatan akan otomatis ditandai Alpa.`
+    )) return;
+
+    setClosingSession(true);
+    setRosterError(null);
+    setRosterNotice(null);
+
+    try {
+      const res = await api.put(`/attendance/sessions/${selectedSession.id}/close`);
+      if (isCameraActive) stopCamera();
+
+      setSessions((previous) => previous.map((session) => (
+        session.id === selectedSession.id ? { ...session, status: "closed" } : session
+      )));
+      setRosterNotice(res.data.message || "Sesi absensi berhasil ditutup.");
+      setRosterLoading(true);
+      setRosterRefresh((value) => value + 1);
+    } catch (error) {
+      const message = axios.isAxiosError(error) ? error.response?.data?.message : null;
+      setRosterError(message || "Gagal menutup sesi absensi.");
+    } finally {
+      setClosingSession(false);
+    }
+  };
+
+  useEffect(() => {
+    if (historyStudent === null || selectedSessionId === null) return;
+
+    let cancelled = false;
+
+    api.get(`/attendance/sessions/${selectedSessionId}/students/${historyStudent.id}/history`)
+      .then((res) => {
+        if (cancelled) return;
+        setHistoryEntries(Array.isArray(res.data.data?.history) ? res.data.data.history : []);
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        const message = axios.isAxiosError(error) ? error.response?.data?.message : null;
+        setHistoryError(message || "Gagal memuat riwayat perubahan.");
+      })
+      .finally(() => {
+        if (!cancelled) setHistoryLoading(false);
+      });
+
+    return () => { cancelled = true; };
+  }, [historyStudent, selectedSessionId]);
 
   const markRemainingAbsent = async () => {
     if (selectedSessionId === null || rosterCounts.belum === 0 || markingAbsent) return;
@@ -889,7 +1028,7 @@ export default function TeacherAttendancePage() {
     };
   }, []);
 
-  const canStartCamera = selectedSessionId !== null;
+  const canStartCamera = selectedSessionId !== null && sessionIsActive;
 
   return (
     <DashboardLayout>
@@ -982,6 +1121,7 @@ export default function TeacherAttendancePage() {
                 {sessions.map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.schedule?.subject?.name} - {s.schedule?.class?.name} ({s.date})
+                    {s.status === "closed" ? " · Selesai" : " · Aktif"}
                   </option>
                 ))}
               </select>
@@ -1019,7 +1159,9 @@ export default function TeacherAttendancePage() {
                       <div className="text-center text-white">
                         <Camera className="mx-auto h-10 w-10 opacity-40 sm:h-12 sm:w-12" />
                         <p className="mt-2 text-sm">
-                          {!canStartCamera ? "Pilih sesi absensi terlebih dahulu" : "Klik Mulai Kamera"}
+                          {selectedSessionId === null
+                            ? "Pilih sesi absensi terlebih dahulu"
+                            : "Sesi sudah ditutup. Absensi kamera tidak dapat dimulai."}
                         </p>
                       </div>
                     </div>
@@ -1111,7 +1253,7 @@ export default function TeacherAttendancePage() {
         </div>
 
         <Card>
-          <CardHeader className="gap-2">
+          <CardHeader className="gap-3">
             <div className="flex flex-wrap items-start justify-between gap-2">
               <div>
                 <CardTitle className="text-sm">Daftar Kehadiran Siswa</CardTitle>
@@ -1119,59 +1261,109 @@ export default function TeacherAttendancePage() {
                   Hadir otomatis lewat kamera. Izin dan sakit diisi manual oleh guru.
                 </p>
               </div>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={() => void markRemainingAbsent()}
-                disabled={
-                  selectedSessionId === null
-                  || rosterCounts.belum === 0
-                  || markingAbsent
-                  || !sessionIsActive
-                }
-              >
-                {markingAbsent
-                  ? "Menyimpan..."
-                  : rosterCounts.belum === 0
-                  ? "Semua siswa sudah tercatat"
-                  : `Tandai ${rosterCounts.belum} belum absen · Alpa`}
-              </Button>
+              <div className="flex flex-wrap gap-2">
+                {selectedSession && sessionIsActive && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => void closeSelectedSession()}
+                    disabled={closingSession}
+                  >
+                    <LockKeyhole className="mr-1.5 h-3.5 w-3.5" />
+                    {closingSession ? "Menutup..." : "Tutup Sesi"}
+                  </Button>
+                )}
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => void markRemainingAbsent()}
+                  disabled={
+                    selectedSessionId === null
+                    || rosterCounts.belum === 0
+                    || markingAbsent
+                    || !sessionIsActive
+                  }
+                >
+                  {markingAbsent
+                    ? "Menyimpan..."
+                    : rosterCounts.belum === 0
+                    ? "Semua siswa sudah tercatat"
+                    : `Tandai ${rosterCounts.belum} belum absen · Alpa`}
+                </Button>
+              </div>
             </div>
 
+            {selectedSession && (
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border bg-muted/30 px-3 py-2 text-xs">
+                <span className="font-medium">
+                  {selectedSession.schedule?.subject?.name ?? "-"} · {selectedSession.schedule?.class?.name ?? "-"}
+                </span>
+                <span className="text-muted-foreground">{formatDate(selectedSession.date)}</span>
+                <span className="text-muted-foreground">Mulai {selectedSession.start_time}</span>
+                <Badge variant={sessionIsActive ? "default" : "secondary"}>
+                  {sessionIsActive ? "Sesi aktif" : "Sesi selesai"}
+                </Badge>
+              </div>
+            )}
+
             {roster.length > 0 && (
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                <span className="flex items-center gap-1">
-                  <span className="h-2 w-2 rounded-full bg-emerald-500" /> Hadir {rosterCounts.hadir}
-                </span>
-                <span className="flex items-center gap-1">
-                  <span className="h-2 w-2 rounded-full bg-amber-500" /> Terlambat {rosterCounts.terlambat}
-                </span>
-                <span className="flex items-center gap-1">
-                  <span className="h-2 w-2 rounded-full bg-blue-500" /> Izin {rosterCounts.izin}
-                </span>
-                <span className="flex items-center gap-1">
-                  <span className="h-2 w-2 rounded-full bg-orange-500" /> Sakit {rosterCounts.sakit}
-                </span>
-                <span className="flex items-center gap-1">
-                  <span className="h-2 w-2 rounded-full bg-red-500" /> Alpa {rosterCounts.alpa}
-                </span>
-                <span className="flex items-center gap-1">
-                  <span className="h-2 w-2 rounded-full bg-slate-300" /> Belum {rosterCounts.belum}
-                </span>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+                {[
+                  {
+                    label: "Total Siswa",
+                    value: roster.length,
+                    className: "border-slate-200 bg-slate-50 text-slate-800",
+                  },
+                  {
+                    label: "Hadir",
+                    value: rosterCounts.hadir,
+                    className: STATUS_META.HADIR.badgeClass,
+                  },
+                  {
+                    label: "Alpa",
+                    value: rosterCounts.alpa,
+                    className: STATUS_META.ALPA.badgeClass,
+                  },
+                  {
+                    label: "Izin",
+                    value: rosterCounts.izin,
+                    className: STATUS_META.IZIN.badgeClass,
+                  },
+                  {
+                    label: "Sakit",
+                    value: rosterCounts.sakit,
+                    className: STATUS_META.SAKIT.badgeClass,
+                  },
+                  {
+                    label: "Belum Tercatat",
+                    value: rosterCounts.belum,
+                    className: "border-slate-200 bg-white text-slate-600",
+                  },
+                ].map((card) => (
+                  <div key={card.label} className={`rounded-lg border px-3 py-2 ${card.className}`}>
+                    <p className="text-lg font-bold leading-tight">{card.value}</p>
+                    <p className="text-[11px] font-medium">{card.label}</p>
+                  </div>
+                ))}
               </div>
             )}
           </CardHeader>
           <CardContent>
             {rosterNotice && (
-              <p className="mb-2 text-xs text-emerald-600">{rosterNotice}</p>
+              <p className="mb-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
+                {rosterNotice}
+              </p>
             )}
             {rosterError && (
-              <p className="mb-2 text-xs text-red-600">{rosterError}</p>
+              <p className="mb-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+                {rosterError}
+              </p>
             )}
-            {!sessionIsActive && (
-              <p className="mb-2 text-xs text-amber-600">
-                Sesi sudah ditutup. Status hanya dapat dilihat.
+            {selectedSession && !sessionIsActive && (
+              <p className="mb-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                Sesi sudah ditutup. Status tetap dapat dikoreksi dan setiap perubahan tercatat di riwayat.
               </p>
             )}
 
@@ -1187,76 +1379,431 @@ export default function TeacherAttendancePage() {
               </p>
             ) : (
               <>
+                <div className="mb-3 flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+                  <div className="relative w-full lg:max-w-xs">
+                    <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      value={searchQuery}
+                      onChange={(event) => setSearchQuery(event.target.value)}
+                      placeholder="Cari nama, NIS, atau NISN..."
+                      className="pl-8"
+                    />
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {STATUS_FILTER_OPTIONS.map((option) => (
+                      <Button
+                        key={option.value}
+                        type="button"
+                        size="sm"
+                        variant={statusFilter === option.value ? "default" : "outline"}
+                        className="h-7 px-2.5 text-xs"
+                        onClick={() => setStatusFilter(option.value)}
+                      >
+                        {option.label}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+
                 <div className="overflow-x-auto">
-                  <Table>
+                  <Table className="min-w-[860px]">
                     <TableHeader>
                       <TableRow>
                         <TableHead>NIS</TableHead>
                         <TableHead>Nama Siswa</TableHead>
                         <TableHead>Status</TableHead>
-                        <TableHead className="text-right">Ubah Status</TableHead>
+                        <TableHead>Keterangan</TableHead>
+                        <TableHead>Perubahan Terakhir</TableHead>
+                        <TableHead className="text-right">Aksi</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {roster.map((student) => {
-                        const status = student.attendance?.status ?? null;
-                        return (
-                          <TableRow key={student.id}>
-                            <TableCell className="font-mono text-xs">{student.nis}</TableCell>
-                            <TableCell>{student.name}</TableCell>
-                            <TableCell>
-                              {status ? (
-                                <div className="flex flex-col gap-0.5">
-                                  <Badge
-                                    variant="outline"
-                                    className={`w-fit ${STATUS_BADGE[status].className}`}
-                                  >
-                                    {STATUS_BADGE[status].label}
-                                  </Badge>
-                                  <span className="text-[10px] text-muted-foreground">
-                                    {student.attendance?.distance != null ? "via kamera" : "input manual"}
-                                  </span>
-                                </div>
-                              ) : (
-                                <span className="text-xs text-muted-foreground">Belum absen</span>
-                              )}
-                            </TableCell>
-                            <TableCell>
-                              <div className="flex flex-wrap justify-end gap-1">
-                                {MANUAL_STATUS_OPTIONS.map((option) => {
-                                  const active = status === option.value;
-                                  return (
-                                    <Button
-                                      key={option.value}
-                                      type="button"
-                                      size="sm"
-                                      variant={active ? "default" : "outline"}
-                                      className="h-7 px-2 text-xs"
-                                      disabled={!sessionIsActive || savingStudentId !== null || active}
-                                      onClick={() => void applyManualStatus(student, option.value)}
-                                    >
-                                      {option.label}
-                                    </Button>
-                                  );
-                                })}
-                                {savingStudentId === student.id && (
-                                  <span className="self-center text-[10px] text-muted-foreground">...</span>
+                      {visibleRoster.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={6} className="py-8 text-center text-sm text-muted-foreground">
+                            Tidak ada siswa yang cocok dengan filter atau pencarian.
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        visibleRoster.map((student) => {
+                          const attendance = student.attendance;
+                          const meta = attendance ? STATUS_META[attendance.status] : null;
+
+                          return (
+                            <TableRow key={student.id}>
+                              <TableCell className="font-mono text-xs">{student.nis}</TableCell>
+                              <TableCell>
+                                <p className="font-medium">{student.name}</p>
+                                <p className="text-[11px] text-muted-foreground">
+                                  NISN {student.nisn || "-"}
+                                </p>
+                              </TableCell>
+                              <TableCell>
+                                {attendance && meta ? (
+                                  <div className="flex flex-col gap-1">
+                                    <Badge variant="outline" className={`w-fit ${meta.badgeClass}`}>
+                                      {meta.label}
+                                    </Badge>
+                                    <span className="text-[10px] text-muted-foreground">
+                                      {attendance.source === "FACE_RECOGNITION"
+                                        ? "via kamera"
+                                        : attendance.source === "MANUAL"
+                                        ? "input manual guru"
+                                        : "otomatis sistem"}
+                                    </span>
+                                  </div>
+                                ) : (
+                                  <span className="text-xs text-muted-foreground">Belum absen</span>
                                 )}
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })}
+                              </TableCell>
+                              <TableCell className="max-w-[220px]">
+                                <span className="line-clamp-2 text-xs text-muted-foreground">
+                                  {attendance?.notes || "-"}
+                                </span>
+                              </TableCell>
+                              <TableCell className="text-xs text-muted-foreground">
+                                {attendance?.status_changed_at ? (
+                                  <div className="space-y-0.5">
+                                    <p className="font-medium text-foreground">
+                                      {attendance.status_changed_by_name || "Sistem"}
+                                    </p>
+                                    <p>{formatDateTime(attendance.status_changed_at)}</p>
+                                  </div>
+                                ) : (
+                                  attendance ? "Otomatis" : "-"
+                                )}
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger
+                                    render={
+                                      <Button
+                                        variant="ghost"
+                                        size="icon-sm"
+                                        aria-label={`Aksi untuk ${student.name}`}
+                                      />
+                                    }
+                                  >
+                                    <MoreHorizontal className="h-4 w-4" />
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end" className="w-56">
+                                    <DropdownMenuItem onClick={() => openStatusModal(student)}>
+                                      <Pencil className="h-4 w-4" />
+                                      Ubah Status Kehadiran
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => openDetailModal(student)}>
+                                      <Eye className="h-4 w-4" />
+                                      Lihat Detail Absensi
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => openHistoryModal(student)}>
+                                      <History className="h-4 w-4" />
+                                      Lihat Riwayat Perubahan
+                                    </DropdownMenuItem>
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })
+                      )}
                     </TableBody>
                   </Table>
                 </div>
-                {rosterLoading && (
-                  <p className="mt-2 text-xs text-muted-foreground">Memperbarui daftar...</p>
-                )}
+                <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+                  <span>
+                    Menampilkan {visibleRoster.length} dari {roster.length} siswa
+                  </span>
+                  {rosterLoading && <span>Memperbarui daftar...</span>}
+                </div>
               </>
             )}
           </CardContent>
         </Card>
+
+        <Dialog
+          open={statusStudent !== null}
+          onOpenChange={(open) => { if (!open) setStatusStudent(null); }}
+        >
+          <DialogContent className="sm:max-w-lg">
+            {statusStudent && (
+              <>
+                <DialogHeader>
+                  <DialogTitle>Ubah Status Kehadiran</DialogTitle>
+                  <DialogDescription>
+                    Perubahan manual akan mencatat alasan, identitas guru, dan waktu perubahan.
+                  </DialogDescription>
+                </DialogHeader>
+
+                <div className="grid grid-cols-1 gap-3 rounded-lg border bg-muted/20 p-3 sm:grid-cols-2">
+                  <InfoItem label="Nama Siswa" value={statusStudent.name} />
+                  <InfoItem label="NIS / NISN" value={`${statusStudent.nis} / ${statusStudent.nisn || "-"}`} />
+                  <InfoItem label="Kelas" value={selectedSession?.schedule?.class?.name} />
+                  <InfoItem label="Tanggal Absensi" value={formatDate(selectedSession?.date)} />
+                  <InfoItem
+                    label="Sesi Jadwal"
+                    value={`${selectedSession?.schedule?.subject?.name ?? "-"} · ${selectedSession?.start_time ?? "-"}`}
+                  />
+                  <InfoItem
+                    label="Status Saat Ini"
+                    value={
+                      statusStudent.attendance ? (
+                        <Badge
+                          variant="outline"
+                          className={STATUS_META[statusStudent.attendance.status].badgeClass}
+                        >
+                          {STATUS_META[statusStudent.attendance.status].label}
+                        </Badge>
+                      ) : "Belum absen"
+                    }
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <p className="text-sm font-medium">Pilihan Status Baru</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {MANUAL_STATUS_OPTIONS.map((option) => {
+                      const meta = STATUS_META[option];
+                      const selected = selectedStatus === option;
+
+                      return (
+                        <button
+                          key={option}
+                          type="button"
+                          onClick={() => {
+                            setSelectedStatus(option);
+                            setStatusError(null);
+                          }}
+                          className={`flex items-center gap-2 rounded-lg border p-2.5 text-left text-sm transition ${
+                            selected
+                              ? meta.selectedClass
+                              : "border-border bg-background hover:bg-muted/50"
+                          }`}
+                        >
+                          <span className={`h-2.5 w-2.5 rounded-full ${meta.dotClass}`} />
+                          <span className="font-medium">{meta.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label htmlFor="status-notes" className="text-sm font-medium">
+                    Keterangan / Alasan
+                    {(selectedStatus === "IZIN" || selectedStatus === "SAKIT") && (
+                      <span className="ml-1 text-red-500">*</span>
+                    )}
+                  </label>
+                  <textarea
+                    id="status-notes"
+                    rows={3}
+                    maxLength={1000}
+                    value={statusNotes}
+                    onChange={(event) => {
+                      setStatusNotes(event.target.value);
+                      setStatusError(null);
+                    }}
+                    placeholder={
+                      selectedStatus === "IZIN"
+                        ? "Contoh: Acara keluarga, surat izin orang tua..."
+                        : selectedStatus === "SAKIT"
+                        ? "Contoh: Demam, surat keterangan dokter..."
+                        : "Opsional. Tambahkan catatan bila diperlukan."
+                    }
+                    className="w-full resize-none rounded-lg border border-input bg-transparent px-3 py-2 text-sm outline-none transition focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                  />
+                  <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                    <span>Wajib diisi untuk status Izin atau Sakit.</span>
+                    <span>{statusNotes.length}/1000</span>
+                  </div>
+                </div>
+
+                {statusError && (
+                  <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+                    {statusError}
+                  </p>
+                )}
+                {selectedSession && !sessionIsActive && (
+                  <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                    Sesi sudah ditutup. Perubahan ini akan dicatat sebagai koreksi.
+                  </p>
+                )}
+
+                <DialogFooter>
+                  <Button
+                    variant="outline"
+                    onClick={() => setStatusStudent(null)}
+                    disabled={savingStatus}
+                  >
+                    Batal
+                  </Button>
+                  <Button onClick={() => void submitStatusChange()} disabled={savingStatus}>
+                    {savingStatus ? "Menyimpan..." : "Simpan"}
+                  </Button>
+                </DialogFooter>
+              </>
+            )}
+          </DialogContent>
+        </Dialog>
+
+        <Dialog
+          open={detailStudent !== null}
+          onOpenChange={(open) => { if (!open) setDetailStudent(null); }}
+        >
+          <DialogContent className="sm:max-w-lg">
+            {detailStudent && (
+              <>
+                <DialogHeader>
+                  <DialogTitle>Detail Absensi</DialogTitle>
+                  <DialogDescription>
+                    Informasi lengkap status kehadiran siswa pada sesi ini.
+                  </DialogDescription>
+                </DialogHeader>
+
+                <div className="grid grid-cols-1 gap-3 rounded-lg border bg-muted/20 p-3 sm:grid-cols-2">
+                  <InfoItem label="Nama Siswa" value={detailStudent.name} />
+                  <InfoItem label="NIS / NISN" value={`${detailStudent.nis} / ${detailStudent.nisn || "-"}`} />
+                  <InfoItem label="Kelas" value={selectedSession?.schedule?.class?.name} />
+                  <InfoItem label="Tanggal Absensi" value={formatDate(selectedSession?.date)} />
+                  <InfoItem
+                    label="Sesi Jadwal"
+                    value={`${selectedSession?.schedule?.subject?.name ?? "-"} · ${selectedSession?.start_time ?? "-"}`}
+                  />
+                  <InfoItem
+                    label="Status Kehadiran"
+                    value={
+                      detailStudent.attendance ? (
+                        <Badge
+                          variant="outline"
+                          className={STATUS_META[detailStudent.attendance.status].badgeClass}
+                        >
+                          {STATUS_META[detailStudent.attendance.status].label}
+                        </Badge>
+                      ) : "Belum absen"
+                    }
+                  />
+                </div>
+
+                <div className="space-y-3 rounded-lg border p-3">
+                  <InfoItem label="Keterangan / Alasan" value={detailStudent.attendance?.notes || "-"} />
+                  <InfoItem
+                    label="Sumber Pencatatan"
+                    value={
+                      detailStudent.attendance
+                        ? SOURCE_LABEL[detailStudent.attendance.source] ?? detailStudent.attendance.source
+                        : "-"
+                    }
+                  />
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <InfoItem
+                      label="Diubah Oleh"
+                      value={detailStudent.attendance?.status_changed_by_name || "Sistem"}
+                    />
+                    <InfoItem
+                      label="Waktu Perubahan"
+                      value={formatDateTime(detailStudent.attendance?.status_changed_at)}
+                    />
+                    <InfoItem
+                      label="Waktu Deteksi"
+                      value={formatDateTime(detailStudent.attendance?.detected_at)}
+                    />
+                    <InfoItem
+                      label="Kecocokan Wajah"
+                      value={
+                        detailStudent.attendance?.distance != null
+                          ? `Distance ${detailStudent.attendance.distance.toFixed(4)} · ${
+                              detailStudent.attendance.recognition_confidence != null
+                                ? `${(detailStudent.attendance.recognition_confidence * 100).toFixed(0)}%`
+                                : "-"
+                            }`
+                          : "-"
+                      }
+                    />
+                  </div>
+                </div>
+
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setDetailStudent(null)}>
+                    Tutup
+                  </Button>
+                </DialogFooter>
+              </>
+            )}
+          </DialogContent>
+        </Dialog>
+
+        <Dialog
+          open={historyStudent !== null}
+          onOpenChange={(open) => { if (!open) setHistoryStudent(null); }}
+        >
+          <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
+            {historyStudent && (
+              <>
+                <DialogHeader>
+                  <DialogTitle>Riwayat Perubahan Status</DialogTitle>
+                  <DialogDescription>
+                    {historyStudent.name} · {selectedSession?.schedule?.subject?.name ?? "-"} ·{" "}
+                    {formatDate(selectedSession?.date)}
+                  </DialogDescription>
+                </DialogHeader>
+
+                {historyLoading ? (
+                  <p className="py-8 text-center text-sm text-muted-foreground">Memuat riwayat...</p>
+                ) : historyError ? (
+                  <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+                    {historyError}
+                  </p>
+                ) : historyEntries.length === 0 ? (
+                  <p className="py-8 text-center text-sm text-muted-foreground">
+                    Belum ada riwayat perubahan untuk siswa ini.
+                  </p>
+                ) : (
+                  <ol className="space-y-4 border-l border-border pl-4">
+                    {historyEntries.map((entry) => (
+                      <li key={entry.id} className="relative">
+                        <span
+                          className={`absolute -left-[21px] top-1.5 h-2.5 w-2.5 rounded-full ${STATUS_META[entry.status].dotClass}`}
+                        />
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          {entry.previous_status && (
+                            <>
+                              <Badge
+                                variant="outline"
+                                className={STATUS_META[entry.previous_status].badgeClass}
+                              >
+                                {STATUS_META[entry.previous_status].label}
+                              </Badge>
+                              <span className="text-xs text-muted-foreground">→</span>
+                            </>
+                          )}
+                          <Badge
+                            variant="outline"
+                            className={STATUS_META[entry.status].badgeClass}
+                          >
+                            {STATUS_META[entry.status].label}
+                          </Badge>
+                        </div>
+                        {entry.notes && (
+                          <p className="mt-1 text-sm">{entry.notes}</p>
+                        )}
+                        <p className="mt-1 text-[11px] text-muted-foreground">
+                          {SOURCE_LABEL[entry.source] ?? entry.source} ·{" "}
+                          {entry.changed_by_name || "Sistem"} · {formatDateTime(entry.changed_at)}
+                        </p>
+                      </li>
+                    ))}
+                  </ol>
+                )}
+
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setHistoryStudent(null)}>
+                    Tutup
+                  </Button>
+                </DialogFooter>
+              </>
+            )}
+          </DialogContent>
+        </Dialog>
       </div>
     </DashboardLayout>
   );

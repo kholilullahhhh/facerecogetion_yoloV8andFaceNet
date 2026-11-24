@@ -84,35 +84,82 @@ export interface AttendanceSession {
   schedule?: Schedule;
   teacher?: Teacher;
   attendances?: Attendance[];
+  attendances_count?: number;
 }
+
+export type AttendanceStatus = "HADIR" | "IZIN" | "SAKIT" | "ALPA";
+
+export type AttendanceSource = "FACE_RECOGNITION" | "MANUAL" | "SYSTEM";
 
 export interface Attendance {
   id: number;
   attendance_session_id: number;
   student_id: number;
-  status: "HADIR" | "TERLAMBAT" | "IZIN" | "SAKIT" | "ALPA";
+  status: AttendanceStatus;
+  notes: string | null;
   distance: number | null;
   recognition_confidence: number | null;
   detected_at: string;
+  status_changed_by: number | null;
+  status_changed_by_name: string | null;
+  status_changed_at: string | null;
+  source: AttendanceSource;
   student?: Student;
   attendance_session?: AttendanceSession;
+  status_changer?: User;
 }
-
-export type AttendanceStatus = Attendance["status"];
 
 /** Roster row used by the teacher's manual attendance panel. */
 export interface SessionStudent {
   id: number;
   nis: string;
+  nisn: string | null;
   name: string;
   gender: "L" | "P";
   attendance: {
     id: number;
     status: AttendanceStatus;
+    notes: string | null;
     detected_at: string | null;
     distance: number | null;
     recognition_confidence: number | null;
+    status_changed_by: number | null;
+    status_changed_by_name: string | null;
+    status_changed_at: string | null;
+    source: AttendanceSource;
   } | null;
+}
+
+export interface SessionRosterSummary {
+  total: number;
+  hadir: number;
+  izin: number;
+  sakit: number;
+  alpa: number;
+  belum: number;
+}
+
+export interface SessionRosterInfo {
+  id: number;
+  status: "active" | "closed";
+  date: string;
+  start_time: string | null;
+  end_time: string | null;
+  class_id: number;
+  class: string | null;
+  subject: string | null;
+  teacher: string | null;
+}
+
+export interface AttendanceHistoryEntry {
+  id: number;
+  previous_status: AttendanceStatus | null;
+  status: AttendanceStatus;
+  notes: string | null;
+  source: string;
+  changed_by: number | null;
+  changed_by_name: string | null;
+  changed_at: string | null;
 }
 
 export interface BBox {
@@ -139,10 +186,48 @@ export interface DashboardSummary {
   subjects: number;
   today_attendance: number;
   present: number;
-  late: number;
   excused: number;
   sick: number;
   absent: number;
+  attendance_rate: number;
+  status_counts: Record<AttendanceStatus, number>;
+}
+
+export interface AttendanceBucket {
+  total: number;
+  hadir: number;
+  izin: number;
+  sakit: number;
+  alpa: number;
+  attendance_rate: number;
+}
+
+export interface ReportPeriod extends AttendanceBucket {
+  key: string;
+  label: string;
+}
+
+export interface ReportClass extends AttendanceBucket {
+  class_id: number | null;
+  class_name: string;
+}
+
+export interface ReportStudent extends AttendanceBucket {
+  student_id: number;
+  nis: string;
+  nisn: string | null;
+  name: string;
+  class_name: string | null;
+}
+
+export interface ReportSummary {
+  period: "daily" | "weekly" | "monthly";
+  start_date: string | null;
+  end_date: string | null;
+  totals: AttendanceBucket;
+  periods: ReportPeriod[];
+  by_class: ReportClass[];
+  by_student: ReportStudent[];
 }
 
 export interface PaginatedResponse<T> {

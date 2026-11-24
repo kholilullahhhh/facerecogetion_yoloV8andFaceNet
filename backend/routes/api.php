@@ -39,6 +39,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/sessions', [AttendanceController::class, 'getSessions']);
         Route::get('/sessions/{session}', [AttendanceController::class, 'getSession']);
         Route::get('/sessions/{session}/students', [AttendanceController::class, 'getSessionStudents']);
+        Route::get('/sessions/{session}/students/{student}/history', [AttendanceController::class, 'getStudentHistory']);
         Route::put('/sessions/{session}/students/{student}', [AttendanceController::class, 'setManualStatus']);
         Route::post('/sessions/{session}/mark-remaining-absent', [AttendanceController::class, 'markRemainingAbsent']);
         Route::put('/sessions/{session}/close', [AttendanceController::class, 'closeSession']);
@@ -48,6 +49,7 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
     Route::prefix('reports')->group(function () {
+        Route::get('/summary', [ReportController::class, 'summary']);
         Route::get('/attendance', [ReportController::class, 'attendance']);
         Route::get('/attendance/export', [ReportController::class, 'export']);
     });

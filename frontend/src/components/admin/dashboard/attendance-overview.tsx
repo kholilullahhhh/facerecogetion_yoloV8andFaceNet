@@ -1,27 +1,26 @@
 "use client";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { UserCheck, Clock, FileText, HeartPulse, UserX } from "lucide-react";
+import { UserCheck, FileText, HeartPulse, UserX } from "lucide-react";
 
 interface Props {
   present: number;
-  late: number;
   excused: number;
   sick: number;
   absent: number;
+  rate?: number;
 }
 
 const items = (p: Props) => [
   { label: "Hadir", value: p.present, icon: UserCheck, color: "text-emerald-600", bg: "bg-emerald-50" },
-  { label: "Terlambat", value: p.late, icon: Clock, color: "text-amber-600", bg: "bg-amber-50" },
   { label: "Izin", value: p.excused, icon: FileText, color: "text-blue-600", bg: "bg-blue-50" },
   { label: "Sakit", value: p.sick, icon: HeartPulse, color: "text-orange-600", bg: "bg-orange-50" },
   { label: "Alpa", value: p.absent, icon: UserX, color: "text-red-600", bg: "bg-red-50" },
 ];
 
-export default function AttendanceOverview({ present, late, excused, sick, absent }: Props) {
-  const total = present + late + excused + sick + absent;
-  const data = items({ present, late, excused, sick, absent });
+export default function AttendanceOverview({ present, excused, sick, absent, rate }: Props) {
+  const total = present + excused + sick + absent;
+  const data = items({ present, excused, sick, absent, rate });
 
   return (
     <Card>
@@ -51,7 +50,7 @@ export default function AttendanceOverview({ present, late, excused, sick, absen
                 })}
               </div>
             </div>
-            <div className="grid grid-cols-5 gap-2">
+            <div className="grid grid-cols-4 gap-2">
               {data.map((d) => {
                 const Icon = d.icon;
                 return (
@@ -65,6 +64,9 @@ export default function AttendanceOverview({ present, late, excused, sick, absen
                 );
               })}
             </div>
+            <p className="mt-3 text-center text-xs text-muted-foreground">
+              Tingkat kehadiran: <span className="font-semibold text-foreground">{rate ?? 0}%</span>
+            </p>
           </>
         )}
       </CardContent>

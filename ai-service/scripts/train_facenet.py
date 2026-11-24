@@ -40,6 +40,9 @@ np.random.seed(42)
 
 FACE_SIZE = 160
 ENROLLED_LIMIT = 10          # student_001..010
+# student_027 datang dari `foto 27` (foto WhatsApp baru 2026-11-24);
+# tetap dilatih karena sertifikatnya paling baru meski di atas limit.
+EXTRA_ENROLLED = ("student_027",)
 VAL_PER_STUDENT = 2
 EPOCHS = 30
 BATCH = 16
@@ -54,7 +57,7 @@ def load_students():
         if not d.is_dir() or not d.name.startswith("student_"):
             continue
         sid = int(d.name.replace("student_", ""))
-        if sid > ENROLLED_LIMIT:
+        if sid > ENROLLED_LIMIT and d.name not in EXTRA_ENROLLED:
             continue
         imgs = sorted(list(d.glob("*.jpg")) + list(d.glob("*.jpeg")) + list(d.glob("*.png")))
         if not imgs:

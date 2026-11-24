@@ -7,7 +7,6 @@ import api from "@/lib/api";
 
 interface DayData {
   HADIR: number;
-  TERLAMBAT: number;
   IZIN: number;
   SAKIT: number;
   ALPA: number;
@@ -19,7 +18,6 @@ interface Props {
 
 const statusColors: Record<string, string> = {
   HADIR: "bg-emerald-500",
-  TERLAMBAT: "bg-amber-500",
   IZIN: "bg-blue-500",
   SAKIT: "bg-orange-500",
   ALPA: "bg-red-500",
@@ -27,7 +25,6 @@ const statusColors: Record<string, string> = {
 
 const statusLabels: Record<string, string> = {
   HADIR: "Hadir",
-  TERLAMBAT: "Terlambat",
   IZIN: "Izin",
   SAKIT: "Sakit",
   ALPA: "Alpa",
@@ -46,7 +43,7 @@ function MiniBarChart({ data }: { data: Props["data"] }) {
   const maxVal = Math.max(
     ...dates.map((d) => {
       const day = data[d];
-      return (day.HADIR || 0) + (day.TERLAMBAT || 0) + (day.IZIN || 0) + (day.SAKIT || 0) + (day.ALPA || 0);
+      return (day.HADIR || 0) + (day.IZIN || 0) + (day.SAKIT || 0) + (day.ALPA || 0);
     }),
     1
   );
@@ -56,7 +53,7 @@ function MiniBarChart({ data }: { data: Props["data"] }) {
       <div className="flex items-end gap-1.5 h-32 sm:h-40">
         {dates.map((date) => {
           const day = data[date];
-          const total = (day.HADIR || 0) + (day.TERLAMBAT || 0) + (day.IZIN || 0) + (day.SAKIT || 0) + (day.ALPA || 0);
+          const total = (day.HADIR || 0) + (day.IZIN || 0) + (day.SAKIT || 0) + (day.ALPA || 0);
 
           return (
             <div key={date} className="flex flex-1 flex-col items-center gap-1 group" title={`${date}: ${total} absensi`}>
@@ -64,10 +61,6 @@ function MiniBarChart({ data }: { data: Props["data"] }) {
                 <div
                   className="w-full rounded-t bg-emerald-500 transition-all"
                   style={{ height: `${(day.HADIR / maxVal) * 100}%` }}
-                />
-                <div
-                  className="w-full bg-amber-500"
-                  style={{ height: `${(day.TERLAMBAT / maxVal) * 100}%` }}
                 />
                 <div
                   className="w-full bg-blue-500"

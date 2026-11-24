@@ -13,6 +13,9 @@ class Attendance extends Model
         'attendance_session_id',
         'student_id',
         'status',
+        'notes',
+        'status_changed_by',
+        'status_changed_at',
         'distance',
         'recognition_confidence',
         'detected_at',
@@ -23,6 +26,7 @@ class Attendance extends Model
     {
         return [
             'detected_at' => 'datetime',
+            'status_changed_at' => 'datetime',
         ];
     }
 
@@ -34,5 +38,15 @@ class Attendance extends Model
     public function student()
     {
         return $this->belongsTo(Student::class);
+    }
+
+    public function statusChanger()
+    {
+        return $this->belongsTo(User::class, 'status_changed_by');
+    }
+
+    public function statusHistories()
+    {
+        return $this->hasMany(AttendanceStatusHistory::class)->orderBy('changed_at');
     }
 }

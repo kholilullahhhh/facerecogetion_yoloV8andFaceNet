@@ -37,7 +37,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (!token) {
-      return;
+      // Defer so the server-rendered loading state hydrates first; without
+      // this, a fresh login would stay on the spinner because the effect
+      // returns before clearing isLoading.
+      const timer = window.setTimeout(() => setIsLoading(false), 0);
+      return () => window.clearTimeout(timer);
     }
     let cancelled = false;
     api.get("/me")

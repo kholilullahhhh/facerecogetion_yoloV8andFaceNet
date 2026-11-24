@@ -6,15 +6,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import api from "@/lib/api";
+import { formatDate, STATUS_META } from "@/lib/attendance-status";
 import type { Attendance } from "@/types";
 import { ArrowRight } from "lucide-react";
 
-const statusConfig: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline"; className: string }> = {
-  HADIR: { label: "Hadir", variant: "default", className: "bg-emerald-50 text-emerald-700 border-emerald-200" },
-  TERLAMBAT: { label: "Terlambat", variant: "secondary", className: "bg-amber-50 text-amber-700 border-amber-200" },
-  IZIN: { label: "Izin", variant: "outline", className: "bg-blue-50 text-blue-700 border-blue-200" },
-  SAKIT: { label: "Sakit", variant: "outline", className: "bg-orange-50 text-orange-700 border-orange-200" },
-  ALPA: { label: "Alpa", variant: "destructive", className: "" },
+const SOURCE_LABEL: Record<string, string> = {
+  MANUAL: "Manual guru",
+  FACE_RECOGNITION: "Kamera",
+  SYSTEM: "Sistem",
 };
 
 function getInitials(name: string) {
@@ -65,7 +64,9 @@ export default function RecentAttendance() {
         ) : (
           <div className="space-y-1">
             {attendances.map((a) => {
-              const sc = statusConfig[a.status] || statusConfig.HADIR;
+              const meta = STATUS_META[a.status] ?? STATUS_META.HADIR;
+              const sessionDate = a.attendance_session?.date;
+
               return (
                 <div key={a.id} className="flex items-center gap-3 rounded-lg px-2 py-2 transition-colors hover:bg-muted/50">
                   <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium">
@@ -77,16 +78,18 @@ export default function RecentAttendance() {
                       {a.student?.class?.name || "-"}
                       {a.attendance_session?.schedule?.subject?.name && ` — ${a.attendance_session.schedule.subject.name}`}
                     </p>
+                    <p className="truncate text-[11px] text-muted-foreground">
+                      {sessionDate ? formatDate(sessionDate) : "-"}
+                      {a.notes ? ` · ${a.notes}` : ""}
+                    </p>
                   </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    {a.recognition_confidence != null && (
-                      <span className="hidden text-[10px] text-muted-foreground sm:inline">
-                        {(a.recognition_confidence * 100).toFixed(0)}%
-                      </span>
-                    )}
-                    <Badge variant={sc.variant} className={`text-[10px] px-1.5 py-0 sm:text-xs ${sc.className}`}>
-                      {sc.label}
+                  <div className="flex shrink-0 flex-col items-end gap-1">
+                    <Badge variant="outline" className={`px-1.5 py-0 text-[10px] sm:text-xs ${meta.badgeClass}`}>
+                      {meta.label}
                     </Badge>
+                    <span className="text-[10px] text-muted-foreground">
+                      {SOURCE_LABEL[a.source] ?? a.source}
+                    </span>
                   </div>
                 </div>
               );

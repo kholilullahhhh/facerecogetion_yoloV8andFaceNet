@@ -8,14 +8,16 @@ use App\Models\AttendanceSession;
 use App\Models\Schedule;
 use App\Models\Student;
 use Carbon\Carbon;
-use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Validation\Rule;
 
 class AttendanceController extends Controller
 {
+    private const STATUSES = ['HADIR', 'IZIN', 'SAKIT', 'ALPA'];
+
     public function storeSession(Request $request): JsonResponse
     {
         $validated = $request->validate([
@@ -69,6 +71,7 @@ class AttendanceController extends Controller
     public function getSessions(Request $request): JsonResponse
     {
         $query = AttendanceSession::with(['schedule.class', 'schedule.subject', 'teacher'])
+            ->withCount('attendances')
             ->orderByDesc('date')
             ->orderByDesc('created_at');
 
@@ -104,6 +107,7 @@ class AttendanceController extends Controller
                 'schedule.subject',
                 'teacher',
                 'attendances.student',
+                'attendances.statusChanger',
             ]),
         ]);
     }
@@ -121,12 +125,15 @@ class AttendanceController extends Controller
             ], 403);
         }
 
-        $session->loadMissing(['schedule.class', 'schedule.subject']);
+        $session->loadMissing(['schedule.class', 'schedule.subject', 'teacher']);
 
         $students = Student::query()
             ->where('class_id', $session->schedule->class_id)
             ->where('status', 'active')
-            ->with(['attendances' => fn ($query) => $query->where('attendance_session_id', $session->id)])
+            ->with([
+                'attendances' => fn ($query) => $query->where('attendance_session_id', $session->id),
+                'attendances.statusChanger',
+            ])
             ->orderBy('name')
             ->get()
             ->map(function (Student $student): array {
@@ -135,17 +142,21 @@ class AttendanceController extends Controller
                 return [
                     'id' => $student->id,
                     'nis' => $student->nis,
+                    'nisn' => $student->nisn,
                     'name' => $student->name,
                     'gender' => $student->gender,
-                    'attendance' => $attendance ? [
-                        'id' => $attendance->id,
-                        'status' => $attendance->status,
-                        'detected_at' => $attendance->detected_at?->toIso8601String(),
-                        'distance' => $attendance->distance,
-                        'recognition_confidence' => $attendance->recognition_confidence,
-                    ] : null,
+                    'attendance' => $attendance ? $this->attendancePayload($attendance) : null,
                 ];
             });
+
+        $summary = [
+            'total' => $students->count(),
+            'hadir' => $students->filter(fn (array $row) => ($row['attendance']['status'] ?? null) === 'HADIR')->count(),
+            'izin' => $students->filter(fn (array $row) => ($row['attendance']['status'] ?? null) === 'IZIN')->count(),
+            'sakit' => $students->filter(fn (array $row) => ($row['attendance']['status'] ?? null) === 'SAKIT')->count(),
+            'alpa' => $students->filter(fn (array $row) => ($row['attendance']['status'] ?? null) === 'ALPA')->count(),
+            'belum' => $students->filter(fn (array $row) => $row['attendance'] === null)->count(),
+        ];
 
         return response()->json([
             'success' => true,
@@ -154,9 +165,14 @@ class AttendanceController extends Controller
                     'id' => $session->id,
                     'status' => $session->status,
                     'date' => $session->date?->toDateString(),
+                    'start_time' => $session->start_time?->format('H:i'),
+                    'end_time' => $session->end_time?->format('H:i'),
+                    'class_id' => $session->schedule->class_id,
                     'class' => $session->schedule->class?->name,
                     'subject' => $session->schedule->subject?->name,
+                    'teacher' => $session->teacher?->name,
                 ],
+                'summary' => $summary,
                 'students' => $students,
             ],
         ]);
@@ -166,6 +182,9 @@ class AttendanceController extends Controller
      * Manual status set by the teacher. IZIN/SAKIT cannot be inferred from a
      * face, so they always come through here. Face data is left untouched when
      * the student was already recognized.
+     *
+     * Manual changes stay possible after a session is closed so a teacher can
+     * correct a mistake. Each change is written to the audit history.
      */
     public function setManualStatus(Request $request, AttendanceSession $session, Student $student): JsonResponse
     {
@@ -176,15 +195,16 @@ class AttendanceController extends Controller
             ], 403);
         }
 
-        if ($session->status !== 'active') {
-            return response()->json([
-                'success' => false,
-                'message' => 'Sesi absensi sudah ditutup.',
-            ], 400);
-        }
+        $session->loadMissing('schedule');
 
         $validated = $request->validate([
-            'status' => 'required|string|in:HADIR,ALPA,IZIN,SAKIT',
+            'status' => ['required', 'string', Rule::in(self::STATUSES)],
+            'notes' => [
+                'nullable',
+                'string',
+                'max:1000',
+                Rule::requiredIf(fn () => in_array($request->input('status'), ['IZIN', 'SAKIT'], true)),
+            ],
         ]);
 
         $inSessionClass = $student->class_id === $session->schedule->class_id
@@ -196,35 +216,67 @@ class AttendanceController extends Controller
             ], 422);
         }
 
-        $attendance = Attendance::firstOrNew([
-            'attendance_session_id' => $session->id,
-            'student_id' => $student->id,
-        ]);
+        $userId = $request->user()->id;
+        $notes = isset($validated['notes']) ? trim((string) $validated['notes']) : null;
+        $notes = $notes === '' ? null : $notes;
 
-        $attendance->status = $validated['status'];
-        $attendance->detected_at = now();
-        if (! $attendance->exists) {
-            $attendance->distance = null;
-            $attendance->recognition_confidence = null;
-        }
-        $attendance->save();
+        [$attendance, $changed] = DB::transaction(function () use ($session, $student, $validated, $notes, $userId): array {
+            $attendance = Attendance::where('attendance_session_id', $session->id)
+                ->where('student_id', $student->id)
+                ->lockForUpdate()
+                ->first();
+
+            if (! $attendance) {
+                $attendance = new Attendance([
+                    'attendance_session_id' => $session->id,
+                    'student_id' => $student->id,
+                    'detected_at' => $this->sessionStartAt($session),
+                ]);
+                $attendance->distance = null;
+                $attendance->recognition_confidence = null;
+                $previousStatus = null;
+            } else {
+                $previousStatus = $attendance->status;
+            }
+
+            $changed = $previousStatus !== $validated['status'] || $attendance->notes !== $notes;
+
+            if ($changed) {
+                $attendance->status = $validated['status'];
+                $attendance->notes = $notes;
+                $attendance->status_changed_by = $userId;
+                $attendance->status_changed_at = now();
+                $attendance->save();
+
+                $attendance->statusHistories()->create([
+                    'previous_status' => $previousStatus,
+                    'status' => $attendance->status,
+                    'notes' => $notes,
+                    'source' => 'MANUAL',
+                    'changed_by' => $userId,
+                    'changed_at' => now(),
+                ]);
+            } else {
+                $attendance->save();
+            }
+
+            return [$attendance, $changed];
+        });
+
+        $attendance->load('statusChanger');
 
         return response()->json([
             'success' => true,
-            'data' => [
-                'id' => $attendance->id,
-                'status' => $attendance->status,
-                'detected_at' => $attendance->detected_at?->toIso8601String(),
-                'distance' => $attendance->distance,
-                'recognition_confidence' => $attendance->recognition_confidence,
-            ],
-            'message' => 'Status kehadiran berhasil disimpan.',
+            'data' => $this->attendancePayload($attendance),
+            'message' => $changed
+                ? 'Status kehadiran berhasil disimpan.'
+                : 'Tidak ada perubahan status kehadiran.',
         ]);
     }
 
     /**
-     * Convenience action at the end of a session: every active student in the
-     * class without an attendance row is marked ALPA. IZIN/SAKIT stay manual.
+     * Convenience action while the session is still open: every active student
+     * in the class without an attendance row is marked ALPA.
      */
     public function markRemainingAbsent(Request $request, AttendanceSession $session): JsonResponse
     {
@@ -242,45 +294,28 @@ class AttendanceController extends Controller
             ], 400);
         }
 
-        $recordedStudentIds = Attendance::where('attendance_session_id', $session->id)
-            ->pluck('student_id');
+        $session->loadMissing('schedule');
 
-        $students = Student::query()
-            ->where('class_id', $session->schedule->class_id)
-            ->where('status', 'active')
-            ->whereNotIn('id', $recordedStudentIds)
-            ->get(['id']);
-
-        if ($students->isEmpty()) {
-            return response()->json([
-                'success' => true,
-                'data' => ['marked' => 0],
-                'message' => 'Semua siswa sudah memiliki status kehadiran.',
-            ]);
-        }
-
-        $now = now();
-        $rows = $students->map(fn (Student $student): array => [
-            'attendance_session_id' => $session->id,
-            'student_id' => $student->id,
-            'status' => 'ALPA',
-            'distance' => null,
-            'recognition_confidence' => null,
-            'detected_at' => $now,
-            'captured_image' => null,
-            'created_at' => $now,
-            'updated_at' => $now,
-        ])->all();
-
-        $marked = Attendance::insertOrIgnore($rows);
+        $marked = DB::transaction(fn (): int => $this->markUnrecordedAsAbsent(
+            $session,
+            'TEACHER_BULK',
+            $request->user()->id,
+            'Ditandai Alpa oleh guru karena belum memiliki catatan kehadiran.'
+        ));
 
         return response()->json([
             'success' => true,
             'data' => ['marked' => $marked],
-            'message' => "{$marked} siswa ditandai Alpa.",
+            'message' => $marked > 0
+                ? "{$marked} siswa ditandai Alpa."
+                : 'Semua siswa sudah memiliki status kehadiran.',
         ]);
     }
 
+    /**
+     * Closing a session finalizes attendance: students without any record are
+     * marked ALPA, while existing HADIR/IZIN/SAKIT records are never touched.
+     */
     public function closeSession(Request $request, AttendanceSession $session): JsonResponse
     {
         if (! $this->authorizeSession($request, $session)) {
@@ -290,27 +325,80 @@ class AttendanceController extends Controller
             ], 403);
         }
 
-        $session->update([
-            'status' => 'closed',
-            'end_time' => now()->format('H:i'),
-        ]);
+        $session->loadMissing('schedule');
+
+        $result = DB::transaction(function () use ($session): array {
+            $locked = AttendanceSession::whereKey($session->id)->lockForUpdate()->firstOrFail();
+
+            if ($locked->status === 'closed') {
+                return ['marked' => 0, 'already_closed' => true];
+            }
+
+            $marked = $this->markUnrecordedAsAbsent(
+                $locked,
+                'SESSION_CLOSE',
+                null,
+                'Ditandai otomatis sebagai Alpa karena tidak melakukan absensi hingga sesi berakhir.'
+            );
+
+            $locked->update([
+                'status' => 'closed',
+                'end_time' => $locked->end_time?->format('H:i') ?: now()->format('H:i'),
+            ]);
+
+            return ['marked' => $marked, 'already_closed' => false];
+        });
 
         return response()->json([
             'success' => true,
-            'message' => 'Sesi absensi berhasil ditutup.',
+            'data' => $result,
+            'message' => $result['already_closed']
+                ? 'Sesi absensi sudah ditutup sebelumnya.'
+                : "Sesi absensi berhasil ditutup. {$result['marked']} siswa tanpa catatan ditandai Alpa.",
         ]);
     }
 
     /**
-     * Admin may access every session; a teacher only their own sessions.
+     * Status history for one student in one session.
      */
-    private function authorizeSession(Request $request, AttendanceSession $session): bool
+    public function getStudentHistory(Request $request, AttendanceSession $session, Student $student): JsonResponse
     {
-        if ($request->user()->role === 'ADMIN') {
-            return true;
+        if (! $this->authorizeSession($request, $session)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Anda tidak memiliki akses ke sesi ini.',
+            ], 403);
         }
 
-        return $session->teacher_id === $request->user()->teacher?->id;
+        $attendance = Attendance::where('attendance_session_id', $session->id)
+            ->where('student_id', $student->id)
+            ->first();
+
+        $history = $attendance
+            ? $attendance->statusHistories()
+                ->with('changedBy:id,name')
+                ->orderByDesc('changed_at')
+                ->orderByDesc('id')
+                ->get()
+                ->map(fn ($entry): array => [
+                    'id' => $entry->id,
+                    'previous_status' => $entry->previous_status,
+                    'status' => $entry->status,
+                    'notes' => $entry->notes,
+                    'source' => $entry->source,
+                    'changed_by' => $entry->changed_by,
+                    'changed_by_name' => $entry->changedBy?->name,
+                    'changed_at' => $entry->changed_at?->toIso8601String(),
+                ])
+            : collect();
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'attendance' => $attendance ? $this->attendancePayload($attendance) : null,
+                'history' => $history,
+            ],
+        ]);
     }
 
     public function recordAttendance(Request $request): JsonResponse
@@ -320,7 +408,7 @@ class AttendanceController extends Controller
             'student_id' => 'required|exists:students,id',
             'distance' => 'required|numeric',
             'recognition_confidence' => 'nullable|numeric',
-            'status' => 'required|in:HADIR,TERLAMBAT',
+            'status' => ['nullable', 'in:HADIR'],
         ]);
 
         $session = AttendanceSession::find($validated['attendance_session_id']);
@@ -349,50 +437,20 @@ class AttendanceController extends Controller
             ], 422);
         }
 
-        $existing = Attendance::where('attendance_session_id', $validated['attendance_session_id'])
-            ->where('student_id', $validated['student_id'])
-            ->first();
-
-        if ($existing) {
-            $existing->update([
-                'distance' => $validated['distance'],
-                'recognition_confidence' => $validated['recognition_confidence'] ?? null,
-                'detected_at' => now(),
-            ]);
-
-            return response()->json([
-                'success' => true,
-                'data' => $existing,
-                'message' => 'Sudah tercatat. Data diperbarui.',
-            ]);
-        }
-
-        try {
-            $attendance = Attendance::create([
-                'attendance_session_id' => $validated['attendance_session_id'],
-                'student_id' => $validated['student_id'],
-                'status' => $validated['status'],
-                'distance' => $validated['distance'],
-                'recognition_confidence' => $validated['recognition_confidence'] ?? null,
-                'detected_at' => now(),
-            ]);
-        } catch (UniqueConstraintViolationException) {
-            $attendance = Attendance::where('attendance_session_id', $validated['attendance_session_id'])
-                ->where('student_id', $validated['student_id'])
-                ->first();
-
-            return response()->json([
-                'success' => true,
-                'data' => $attendance,
-                'message' => 'Sudah tercatat. Data diperbarui.',
-            ]);
-        }
+        $result = $this->recordFaceAttendance(
+            $session,
+            (int) $validated['student_id'],
+            (float) $validated['distance'],
+            isset($validated['recognition_confidence']) ? (float) $validated['recognition_confidence'] : null,
+        );
 
         return response()->json([
             'success' => true,
-            'data' => $attendance,
-            'message' => 'Kehadiran berhasil dicatat.',
-        ], 201);
+            'data' => $this->attendancePayload($result['attendance']),
+            'message' => $result['status'] === 'recorded'
+                ? 'Kehadiran berhasil dicatat.'
+                : 'Sudah tercatat. Data diperbarui.',
+        ], $result['status'] === 'recorded' ? 201 : 200);
     }
 
     /**
@@ -488,16 +546,13 @@ class AttendanceController extends Controller
         })->where('status', 'active')->with('faceEmbeddings')->get();
 
         $allEmbeddings = [];
-        $studentMap = [];
         foreach ($students as $student) {
             foreach ($student->faceEmbeddings as $embedding) {
-                $key = $student->id.'_'.$embedding->id;
                 $allEmbeddings[] = [
                     'student_id' => $student->id,
                     'student_name' => $student->name,
                     'embedding' => $embedding->embedding,
                 ];
-                $studentMap[$student->id] = $student->name;
             }
         }
 
@@ -537,42 +592,13 @@ class AttendanceController extends Controller
             ];
 
             if ($face['matched'] && $face['student_id']) {
-                $existing = Attendance::where('attendance_session_id', $session->id)
-                    ->where('student_id', $face['student_id'])
-                    ->first();
-
-                if ($existing) {
-                    $record['status'] = 'already_recorded';
-
-                    // ALPA is a provisional "not present yet"; if the student
-                    // shows up later, the camera should still record them.
-                    // Manual IZIN/SAKIT/HADIR stay untouched.
-                    if ($existing->status === 'ALPA') {
-                        $existing->update([
-                            'status' => $this->determineAttendanceStatus($session),
-                            'distance' => $face['distance'],
-                            'recognition_confidence' => $face['detection_confidence'],
-                            'detected_at' => now(),
-                        ]);
-                        $record['status'] = 'recorded';
-                    }
-                } else {
-                    $attendanceStatus = $this->determineAttendanceStatus($session);
-                    try {
-                        Attendance::create([
-                            'attendance_session_id' => $session->id,
-                            'student_id' => $face['student_id'],
-                            'status' => $attendanceStatus,
-                            'distance' => $face['distance'],
-                            'recognition_confidence' => $face['detection_confidence'],
-                            'detected_at' => now(),
-                        ]);
-                        $record['status'] = 'recorded';
-                    } catch (UniqueConstraintViolationException) {
-                        // A concurrent request recorded the same student first.
-                        $record['status'] = 'already_recorded';
-                    }
-                }
+                $result = $this->recordFaceAttendance(
+                    $session,
+                    (int) $face['student_id'],
+                    (float) $face['distance'],
+                    isset($face['detection_confidence']) ? (float) $face['detection_confidence'] : null,
+                );
+                $record['status'] = $result['status'];
             }
 
             $results[] = $record;
@@ -585,21 +611,176 @@ class AttendanceController extends Controller
         ]);
     }
 
-    private function determineAttendanceStatus(AttendanceSession $session): string
-    {
-        // Raw DB values: the model casts turn `date`/`start_time` into full
-        // datetimes, and SQLite stores `date` with a time part, so build the
-        // timestamp from normalized date + time instead of concatenating raw
-        // strings.
-        $date = Carbon::parse($session->getRawOriginal('date'))->toDateString();
-        $time = Carbon::parse($session->schedule->getRawOriginal('start_time'))->format('H:i:s');
-        $startTime = Carbon::parse("{$date} {$time}", config('app.timezone'));
-        $lateThreshold = $startTime->copy()->addMinutes(15);
+    /**
+     * Record a face recognition hit. IZIN/SAKIT are manual decisions and are
+     * never overwritten by the camera; an ALPA placeholder is upgraded HADIR.
+     *
+     * @return array{status: string, attendance: Attendance}
+     */
+    private function recordFaceAttendance(
+        AttendanceSession $session,
+        int $studentId,
+        float $distance,
+        ?float $confidence
+    ): array {
+        return DB::transaction(function () use ($session, $studentId, $distance, $confidence): array {
+            $attendance = Attendance::where('attendance_session_id', $session->id)
+                ->where('student_id', $studentId)
+                ->lockForUpdate()
+                ->first();
 
-        if (now(config('app.timezone'))->greaterThan($lateThreshold)) {
-            return 'TERLAMBAT';
+            if (! $attendance) {
+                $attendance = Attendance::create([
+                    'attendance_session_id' => $session->id,
+                    'student_id' => $studentId,
+                    'status' => 'HADIR',
+                    'distance' => $distance,
+                    'recognition_confidence' => $confidence,
+                    'detected_at' => now(),
+                    'status_changed_at' => now(),
+                ]);
+
+                $attendance->statusHistories()->create([
+                    'previous_status' => null,
+                    'status' => 'HADIR',
+                    'notes' => 'Tercatat otomatis melalui pengenalan wajah.',
+                    'source' => 'FACE_RECOGNITION',
+                    'changed_by' => null,
+                    'changed_at' => now(),
+                ]);
+
+                return ['status' => 'recorded', 'attendance' => $attendance];
+            }
+
+            if (in_array($attendance->status, ['IZIN', 'SAKIT'], true)) {
+                return ['status' => 'already_recorded', 'attendance' => $attendance];
+            }
+
+            $previousStatus = $attendance->status;
+            $attendance->status = 'HADIR';
+            $attendance->distance = $distance;
+            $attendance->recognition_confidence = $confidence;
+            $attendance->detected_at = now();
+            if ($previousStatus !== 'HADIR') {
+                $attendance->status_changed_by = null;
+                $attendance->status_changed_at = now();
+            }
+            $attendance->save();
+
+            if ($previousStatus !== 'HADIR') {
+                $attendance->statusHistories()->create([
+                    'previous_status' => $previousStatus,
+                    'status' => 'HADIR',
+                    'notes' => 'Diperbarui otomatis melalui pengenalan wajah.',
+                    'source' => 'FACE_RECOGNITION',
+                    'changed_by' => null,
+                    'changed_at' => now(),
+                ]);
+            }
+
+            return [
+                'status' => $previousStatus === 'HADIR' ? 'already_recorded' : 'recorded',
+                'attendance' => $attendance,
+            ];
+        });
+    }
+
+    /**
+     * Insert ALPA for every active student in the session class that has no
+     * attendance row. Existing IZIN/SAKIT/HADIR rows are untouched, and the
+     * unique session+student constraint prevents duplicates.
+     */
+    private function markUnrecordedAsAbsent(
+        AttendanceSession $session,
+        string $source,
+        ?int $changedBy,
+        string $notes
+    ): int {
+        $recordedStudentIds = Attendance::where('attendance_session_id', $session->id)
+            ->pluck('student_id');
+
+        $students = Student::query()
+            ->where('class_id', $session->schedule->class_id)
+            ->where('status', 'active')
+            ->whereNotIn('id', $recordedStudentIds)
+            ->get(['id']);
+
+        $marked = 0;
+
+        foreach ($students as $student) {
+            $attendance = Attendance::firstOrCreate(
+                [
+                    'attendance_session_id' => $session->id,
+                    'student_id' => $student->id,
+                ],
+                [
+                    'status' => 'ALPA',
+                    'distance' => null,
+                    'recognition_confidence' => null,
+                    'detected_at' => now(),
+                    'notes' => null,
+                ]
+            );
+
+            if (! $attendance->wasRecentlyCreated) {
+                continue;
+            }
+
+            $attendance->statusHistories()->create([
+                'previous_status' => null,
+                'status' => 'ALPA',
+                'notes' => $notes,
+                'source' => $source,
+                'changed_by' => $changedBy,
+                'changed_at' => now(),
+            ]);
+
+            $marked++;
         }
 
-        return 'HADIR';
+        return $marked;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function attendancePayload(Attendance $attendance): array
+    {
+        $attendance->loadMissing('statusChanger:id,name');
+
+        return [
+            'id' => $attendance->id,
+            'status' => $attendance->status,
+            'notes' => $attendance->notes,
+            'detected_at' => $attendance->detected_at?->toIso8601String(),
+            'distance' => $attendance->distance,
+            'recognition_confidence' => $attendance->recognition_confidence,
+            'status_changed_by' => $attendance->status_changed_by,
+            'status_changed_by_name' => $attendance->statusChanger?->name,
+            'status_changed_at' => $attendance->status_changed_at?->toIso8601String(),
+            'source' => $attendance->distance !== null
+                ? 'FACE_RECOGNITION'
+                : ($attendance->status_changed_by !== null ? 'MANUAL' : 'SYSTEM'),
+        ];
+    }
+
+    private function sessionStartAt(AttendanceSession $session): Carbon
+    {
+        $date = Carbon::parse($session->getRawOriginal('date'))->toDateString();
+        $time = Carbon::parse($session->schedule->getRawOriginal('start_time'))->format('H:i:s');
+
+        return Carbon::parse("{$date} {$time}", config('app.timezone'));
+    }
+
+    /**
+     * Admin may access every session; a teacher only their own sessions.
+     */
+    private function authorizeSession(Request $request, AttendanceSession $session): bool
+    {
+        if ($request->user()->role === 'ADMIN') {
+            return true;
+        }
+
+        return $session->teacher_id === $request->user()->teacher?->id;
     }
 }
