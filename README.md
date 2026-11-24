@@ -117,6 +117,10 @@ docker-compose up -d
 ### Attendance
 - `POST /api/attendance/sessions`
 - `GET /api/attendance/sessions`
+- `GET /api/attendance/sessions/{session}/students` — roster kelas + status kehadiran
+- `PUT /api/attendance/sessions/{session}/students/{student}` — status manual `HADIR`/`IZIN`/`SAKIT`/`ALPA`
+- `POST /api/attendance/sessions/{session}/mark-remaining-absent` — tandai siswa tanpa catatan sebagai `ALPA`
+- `POST /api/attendance/detect`
 - `POST /api/attendance/recognize`
 
 ### Dashboard
